@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Wall Ball Judge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #000;
+      color: white;
+      text-align: center;
+    }
+    #videoContainer {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+    }
+    video, canvas {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    #overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      padding: 12px;
+      z-index: 10;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(0,0,0,0.4);
+    }
+    #repCount {
+      font-size: 1.5rem;
+      font-weight: bold;
+    }
+    #feedback {
+      font-size: 1.2rem;
+    }
+    #startScreen {
+      position: absolute;
+      inset: 0;
+      background: black;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 20;
+    }
+    .btn {
+      padding: 14px 24px;
+      margin: 10px;
+      font-size: 1.1rem;
+      border: none;
+      border-radius: 10px;
+      background: #1e90ff;
+      color: white;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+<div id="videoContainer">
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="canvas"></canvas>
+
+  <div id="overlay">
+    <div id="repCount">Reps: 0</div>
+    <div id="feedback">Ready</div>
+  </div>
+
+  <div id="startScreen">
+    <h2>Select Division</h2>
+    <button class="btn" onclick="startApp('women')">Women (9 ft target)</button>
+    <button class="btn" onclick="startApp('men')">Men (10 ft target)</button>
+  </div>
+</div>
+
+<!-- MediaPipe Libraries -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+<script>
+  const video = document.getElementById("video");
+  const canvas = document.getElementById("canvas");
+  const ctx = canvas.getContext("2d");
+  const repCountEl = document.getElementById("repCount");
+  const feedbackEl = document.getElementById("feedback");
+  const startScreen = document.getElementById("startScreen");
+
+  let reps = 0;
+  let inSquat = false;
+  let targetHeightRatio = 0.7; // default, will adjust by division
+  let lastBallHeight = null;
+  let ballAboveTarget = false;
+
+  function startApp(division) {
+    startScreen.style.display = "none";
+
+    if (division === "women") {
+      targetHeightRatio = 0.68; // slightly lower target
+    } else {
+      targetHeightRatio = 0.75; // higher target
+    }
+
+    initCamera();
+  }
+
+  function initCamera() {
+    const pose = new Pose({
+      locateFile: (file) =>
+        `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`,
+    });
+
+    pose.setOptions({
+      modelComplexity: 1,
+      smoothLandmarks: true,
+      enableSegmentation: false,
+      smoothSegmentation: false,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5,
+    });
+
+    pose.onResults(onResults);
+
+    const camera = new Camera(video, {
+      onFrame: async () => {
+        await pose.send({ image: video });
+      },
+      width: 1280,
+      height: 720,
+    });
+
+    camera.start();
+  }
+
+  function calculateKneeAngle(hip, knee, ankle) {
+    const radians =
+      Math.atan2(ankle.y - knee.y, ankle.x - knee.x) -
+      Math.atan2(hip.y - knee.y, hip.x - knee.x);
+    let angle = Math.abs((radians * 180.0) / Math.PI);
+    if (angle > 180.0) angle = 360.0 - angle;
+    return angle;
+  }
+
+  function onResults(results) {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    ctx.save();
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+
+    if (!results.poseLandmarks) {
+      ctx.restore();
+      return;
+    }
+
+    const lm = results.poseLandmarks;
+
+    const leftHip = lm[23];
+    const leftKnee = lm[25];
+    const leftAnkle = lm[27];
+
+    const rightHip = lm[24];
+    const rightKnee = lm[26];
+    const rightAnkle = lm[28];
+
+    const leftAngle = calculateKneeAngle(leftHip, leftKnee, leftAnkle);
+    const rightAngle = calculateKneeAngle(rightHip, rightKnee, rightAnkle);
+    const avgAngle = (leftAngle + rightAngle) / 2;
+
+    const squatDepthGood = avgAngle < 100; // approx below parallel
+
+    // Simulated ball tracking using wrist height
+    const leftWrist = lm[15];
+    const rightWrist = lm[16];
+    const wristY = Math.min(leftWrist.y, rightWrist.y);
+
+    const targetY = canvas.height * (1 - targetHeightRatio);
+
+    if (squatDepthGood && !inSquat) {
+      inSquat = true;
+      feedbackEl.textContent = "Squat depth good";
+    }
+
+    if (!squatDepthGood && inSquat) {
+      inSquat = false;
+      feedbackEl.textContent = "Stand up";
+    }
+
+    // Detect ball above target (using wrist proxy)
+    const wristPixelY = wristY * canvas.height;
+
+    if (wristPixelY < targetY && !ballAboveTarget) {
+      ballAboveTarget = true;
+      feedbackEl.textContent = "Target reached";
+    }
+
+    if (ballAboveTarget && wristPixelY > targetY + 30) {
+      // Ball came down
+      if (squatDepthGood) {
+        reps += 1;
+        repCountEl.textContent = `Reps: ${reps}`;
+        feedbackEl.textContent = "GOOD REP ✅";
+      } else {
+        feedbackEl.textContent = "NO REP ❌";
+      }
+      ballAboveTarget = false;
+    }
+
+    drawLandmarks(lm);
+
+    ctx.restore();
+  }
+
+  function drawLandmarks(landmarks) {
+    drawConnectors(ctx, landmarks, POSE_CONNECTIONS,
+      { color: '#00FF00', lineWidth: 2 });
+    drawLandmarks(ctx, landmarks,
+      { color: '#FF0000', lineWidth: 1 });
+  }
+</script>
+
+</body>
+</html>
