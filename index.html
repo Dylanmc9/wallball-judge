@@ -10,7 +10,6 @@
       font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
       background: #000;
       color: white;
-      text-align: center;
       overflow: hidden;
     }
     #videoContainer {
@@ -36,34 +35,21 @@
       padding: 12px;
       z-index: 10;
       display: flex;
+      align-items: center;
       gap: 10px;
       justify-content: space-between;
-      align-items: center;
       background: rgba(0,0,0,0.4);
       box-sizing: border-box;
     }
-    #repCount {
-      font-size: 1.4rem;
-      font-weight: 800;
-      white-space: nowrap;
-    }
-    #feedback {
-      font-size: 1.1rem;
-      opacity: 0.95;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      max-width: 45vw;
-      text-align: right;
-      margin-left: auto;
-    }
+    #repCount { font-size: 1.4rem; font-weight: 800; white-space: nowrap; }
+    #feedback { font-size: 1.05rem; opacity: 0.95; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 45vw; text-align: right; margin-left: auto; }
     .btn {
       padding: 10px 14px;
       font-size: 0.95rem;
       border: none;
       border-radius: 10px;
       background: #1e90ff;
-      color: white;
+      color: #fff;
       cursor: pointer;
       white-space: nowrap;
     }
@@ -78,22 +64,11 @@
       z-index: 20;
       padding: 20px;
       box-sizing: border-box;
+      text-align: center;
     }
-    #startScreen h2 {
-      margin: 0 0 14px 0;
-      font-size: 1.6rem;
-    }
-    #startScreen p {
-      margin: 0 0 18px 0;
-      opacity: 0.85;
-      max-width: 420px;
-    }
-    .stack {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      width: min(420px, 90vw);
-    }
+    #startScreen h2 { margin: 0 0 14px 0; font-size: 1.6rem; }
+    #startScreen p { margin: 0 0 18px 0; opacity: 0.85; max-width: 420px; }
+    .stack { display: flex; flex-direction: column; gap: 10px; width: min(420px, 90vw); }
   </style>
 </head>
 <body>
@@ -110,7 +85,7 @@
 
   <div id="startScreen">
     <h2>Select Division</h2>
-    <p>Tip: place your phone so your full body is visible (head to ankles). Rear camera gives best tracking.</p>
+    <p>Tip: place your phone so your full body is visible. Rear camera gives best tracking.</p>
     <div class="stack">
       <button class="btn" style="width:100%;" onclick="startApp('women')">Women (9 ft target)</button>
       <button class="btn" style="width:100%;" onclick="startApp('men')">Men (10 ft target)</button>
@@ -118,10 +93,8 @@
   </div>
 </div>
 
-<!-- MediaPipe -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 
 <script>
   const video = document.getElementById("video");
@@ -132,74 +105,33 @@
   const startScreen = document.getElementById("startScreen");
   const flipBtn = document.getElementById("flipBtn");
 
-  // App state
+  // Rep logic state
   let reps = 0;
   let inSquat = false;
   let targetHeightRatio = 0.7;
   let ballAboveTarget = false;
 
-  // Camera state
-  let currentFacing = "environment";
+  // Camera/pose state
+  let currentFacing = "environment"; // start with rear attempt
   let currentStream = null;
   let pose = null;
-  let cameraLoop = null;
+
+  let rafId = null;
+  let isProcessing = false; // prevents overlap pose.send()
+  let started = false;
 
   function startApp(division) {
     startScreen.style.display = "none";
-
-    // Simple height proxy (you can refine later with calibration)
     if (division === "women") targetHeightRatio = 0.68;
     if (division === "men") targetHeightRatio = 0.75;
-
-    initCamera();
+    started = true;
+    initPoseOnce();
+    startWithFacing("environment");
   }
 
-  async function getBestRearDeviceId() {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const videos = devices.filter(d => d.kind === "videoinput");
+  function initPoseOnce() {
+    if (pose) return;
 
-    // Prefer anything labeled back/rear (works after permission is granted)
-    const rear = videos.find(d => (d.label || "").toLowerCase().includes("back")
-                               || (d.label || "").toLowerCase().includes("rear"));
-
-    return rear?.deviceId || null;
-  }
-
-  async function startStream(facingMode) {
-    // stop existing stream
-    if (currentStream) {
-      currentStream.getTracks().forEach(t => t.stop());
-      currentStream = null;
-    }
-
-    let constraints = {
-      video: {
-        facingMode: { ideal: facingMode },
-        width: { ideal: 1280 },
-        height: { ideal: 720 }
-      },
-      audio: false
-    };
-
-    // Try to lock to a rear camera deviceId if available
-    if (facingMode === "environment") {
-      const rearId = await getBestRearDeviceId();
-      if (rearId) {
-        constraints.video = {
-          deviceId: { exact: rearId },
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        };
-      }
-    }
-
-    currentStream = await navigator.mediaDevices.getUserMedia(constraints);
-    video.srcObject = currentStream;
-    await video.play();
-  }
-
-  async function initCamera() {
-    // Create pose once
     pose = new Pose({
       locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`,
     });
@@ -213,35 +145,94 @@
     });
 
     pose.onResults(onResults);
+  }
 
-    // Start rear camera first, fall back to front if needed
-    try {
-      currentFacing = "environment";
-      await startStream(currentFacing);
-    } catch (e) {
-      currentFacing = "user";
-      await startStream(currentFacing);
+  function stopLoop() {
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = null;
+  }
+
+  function stopStream() {
+    if (currentStream) {
+      currentStream.getTracks().forEach(t => t.stop());
+      currentStream = null;
+    }
+  }
+
+  async function startWithFacing(facing) {
+    // Full safe restart
+    stopLoop();
+    stopStream();
+
+    feedbackEl.textContent = `Switching...`;
+
+    // iOS is picky: try exact first, then ideal.
+    const tryConstraints = [
+      { video: { facingMode: { exact: facing }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false },
+      { video: { facingMode: { ideal: facing }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false },
+    ];
+
+    let stream = null;
+    let lastErr = null;
+
+    for (const c of tryConstraints) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(c);
+        break;
+      } catch (e) {
+        lastErr = e;
+      }
     }
 
-    // Start MediaPipe camera loop
-    cameraLoop = new Camera(video, {
-      onFrame: async () => {
+    if (!stream) {
+      // If rear fails, fall back to front automatically
+      if (facing === "environment") {
+        feedbackEl.textContent = `Rear blocked — using front`;
+        return startWithFacing("user");
+      }
+      feedbackEl.textContent = `Camera error`;
+      console.error(lastErr);
+      return;
+    }
+
+    currentStream = stream;
+    video.srcObject = currentStream;
+
+    // iOS needs a moment after setting srcObject
+    try { await video.play(); } catch (_) {}
+
+    currentFacing = facing;
+    feedbackEl.textContent = `Camera: ${currentFacing === "environment" ? "Rear" : "Front"}`;
+
+    // Kick off pose processing loop
+    runLoop();
+  }
+
+  function runLoop() {
+    const tick = async () => {
+      rafId = requestAnimationFrame(tick);
+
+      if (!pose || !started) return;
+      if (isProcessing) return;
+      if (video.readyState < 2) return; // not enough data
+
+      isProcessing = true;
+      try {
         await pose.send({ image: video });
-      },
-    });
-    cameraLoop.start();
+      } catch (e) {
+        // If a frame fails during switching, ignore
+        // (iOS sometimes throws transient errors)
+      } finally {
+        isProcessing = false;
+      }
+    };
+    tick();
   }
 
   flipBtn.addEventListener("click", async () => {
-    currentFacing = (currentFacing === "user") ? "environment" : "user";
-    feedbackEl.textContent = `Switching camera...`;
-
-    try {
-      await startStream(currentFacing);
-      feedbackEl.textContent = `Camera: ${currentFacing === "user" ? "Front" : "Rear"}`;
-    } catch (err) {
-      feedbackEl.textContent = `Could not switch camera`;
-    }
+    if (!started) return;
+    const next = (currentFacing === "environment") ? "user" : "environment";
+    await startWithFacing(next);
   });
 
   function calculateKneeAngle(hip, knee, ankle) {
@@ -266,7 +257,6 @@
 
     const lm = results.poseLandmarks;
 
-    // Knees
     const leftHip = lm[23], leftKnee = lm[25], leftAnkle = lm[27];
     const rightHip = lm[24], rightKnee = lm[26], rightAnkle = lm[28];
 
@@ -274,10 +264,8 @@
     const rightAngle = calculateKneeAngle(rightHip, rightKnee, rightAnkle);
     const avgAngle = (leftAngle + rightAngle) / 2;
 
-    // Rough depth proxy: below parallel tends to be < ~100 degrees
     const squatDepthGood = avgAngle < 100;
 
-    // Ball proxy: use wrists (for MVP)
     const leftWrist = lm[15];
     const rightWrist = lm[16];
     const wristY = Math.min(leftWrist.y, rightWrist.y);
@@ -295,13 +283,11 @@
       feedbackEl.textContent = "Stand up";
     }
 
-    // "Target reached" if wrists go above target line
     if (wristPixelY < targetY && !ballAboveTarget) {
       ballAboveTarget = true;
       feedbackEl.textContent = "Target reached";
     }
 
-    // Count when wrists drop back down
     if (ballAboveTarget && wristPixelY > targetY + 30) {
       if (squatDepthGood) {
         reps += 1;
@@ -313,11 +299,9 @@
       ballAboveTarget = false;
     }
 
-    // Draw skeleton
-    drawConnectors(ctx, lm, POSE_CONNECTIONS, { color: '#00FF00', lineWidth: 2 });
-    drawLandmarks(ctx, lm, { color: '#FF0000', lineWidth: 1 });
+    drawConnectors(ctx, lm, POSE_CONNECTIONS, { color: "#00FF00", lineWidth: 2 });
+    drawLandmarks(ctx, lm, { color: "#FF0000", lineWidth: 1 });
   }
 </script>
-
 </body>
 </html>
