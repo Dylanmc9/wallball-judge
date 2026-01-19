@@ -17,6 +17,7 @@
       position: fixed;
       inset: 0;
       overflow: hidden;
+      background: #000;
     }
     video, canvas {
       position: absolute;
@@ -35,36 +36,63 @@
       padding: 12px;
       z-index: 10;
       display: flex;
+      gap: 10px;
       justify-content: space-between;
       align-items: center;
       background: rgba(0,0,0,0.4);
+      box-sizing: border-box;
     }
     #repCount {
-      font-size: 1.5rem;
-      font-weight: bold;
+      font-size: 1.4rem;
+      font-weight: 800;
+      white-space: nowrap;
     }
     #feedback {
-      font-size: 1.2rem;
-    }
-    #startScreen {
-      position: absolute;
-      inset: 0;
-      background: black;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      z-index: 20;
+      font-size: 1.1rem;
+      opacity: 0.95;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 45vw;
+      text-align: right;
+      margin-left: auto;
     }
     .btn {
-      padding: 14px 24px;
-      margin: 10px;
-      font-size: 1.1rem;
+      padding: 10px 14px;
+      font-size: 0.95rem;
       border: none;
       border-radius: 10px;
       background: #1e90ff;
       color: white;
       cursor: pointer;
+      white-space: nowrap;
+    }
+    #startScreen {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.92);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 20;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    #startScreen h2 {
+      margin: 0 0 14px 0;
+      font-size: 1.6rem;
+    }
+    #startScreen p {
+      margin: 0 0 18px 0;
+      opacity: 0.85;
+      max-width: 420px;
+    }
+    .stack {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: min(420px, 90vw);
     }
   </style>
 </head>
@@ -76,16 +104,21 @@
 
   <div id="overlay">
     <div id="repCount">Reps: 0</div>
+    <button id="flipBtn" class="btn" type="button">Flip</button>
     <div id="feedback">Ready</div>
   </div>
 
   <div id="startScreen">
     <h2>Select Division</h2>
-    <button class="btn" onclick="startApp('women')">Women (9 ft target)</button>
-    <button class="btn" onclick="startApp('men')">Men (10 ft target)</button>
+    <p>Tip: place your phone so your full body is visible (head to ankles). Rear camera gives best tracking.</p>
+    <div class="stack">
+      <button class="btn" style="width:100%;" onclick="startApp('women')">Women (9 ft target)</button>
+      <button class="btn" style="width:100%;" onclick="startApp('men')">Men (10 ft target)</button>
+    </div>
   </div>
 </div>
 
+<!-- MediaPipe -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
@@ -97,61 +130,119 @@
   const repCountEl = document.getElementById("repCount");
   const feedbackEl = document.getElementById("feedback");
   const startScreen = document.getElementById("startScreen");
+  const flipBtn = document.getElementById("flipBtn");
 
+  // App state
   let reps = 0;
   let inSquat = false;
   let targetHeightRatio = 0.7;
   let ballAboveTarget = false;
 
+  // Camera state
+  let currentFacing = "environment";
+  let currentStream = null;
+  let pose = null;
+  let cameraLoop = null;
+
   function startApp(division) {
     startScreen.style.display = "none";
 
-    if (division === "women") {
-      targetHeightRatio = 0.68;
-    } else {
-      targetHeightRatio = 0.75;
-    }
+    // Simple height proxy (you can refine later with calibration)
+    if (division === "women") targetHeightRatio = 0.68;
+    if (division === "men") targetHeightRatio = 0.75;
 
     initCamera();
   }
 
-  async function initCamera() {
-    const stream = await navigator.mediaDevices.getUserMedia({
+  async function getBestRearDeviceId() {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videos = devices.filter(d => d.kind === "videoinput");
+
+    // Prefer anything labeled back/rear (works after permission is granted)
+    const rear = videos.find(d => (d.label || "").toLowerCase().includes("back")
+                               || (d.label || "").toLowerCase().includes("rear"));
+
+    return rear?.deviceId || null;
+  }
+
+  async function startStream(facingMode) {
+    // stop existing stream
+    if (currentStream) {
+      currentStream.getTracks().forEach(t => t.stop());
+      currentStream = null;
+    }
+
+    let constraints = {
       video: {
-        facingMode: { ideal: "environment" },
+        facingMode: { ideal: facingMode },
         width: { ideal: 1280 },
         height: { ideal: 720 }
       },
       audio: false
-    });
+    };
 
-    video.srcObject = stream;
+    // Try to lock to a rear camera deviceId if available
+    if (facingMode === "environment") {
+      const rearId = await getBestRearDeviceId();
+      if (rearId) {
+        constraints.video = {
+          deviceId: { exact: rearId },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        };
+      }
+    }
+
+    currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+    video.srcObject = currentStream;
     await video.play();
+  }
 
-    const pose = new Pose({
-      locateFile: (file) =>
-        `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`,
+  async function initCamera() {
+    // Create pose once
+    pose = new Pose({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`,
     });
 
     pose.setOptions({
       modelComplexity: 1,
       smoothLandmarks: true,
       enableSegmentation: false,
-      smoothSegmentation: false,
       minDetectionConfidence: 0.5,
       minTrackingConfidence: 0.5,
     });
 
     pose.onResults(onResults);
 
-    const camera = new Camera(video, {
+    // Start rear camera first, fall back to front if needed
+    try {
+      currentFacing = "environment";
+      await startStream(currentFacing);
+    } catch (e) {
+      currentFacing = "user";
+      await startStream(currentFacing);
+    }
+
+    // Start MediaPipe camera loop
+    cameraLoop = new Camera(video, {
       onFrame: async () => {
         await pose.send({ image: video });
       },
     });
-
-    camera.start();
+    cameraLoop.start();
   }
+
+  flipBtn.addEventListener("click", async () => {
+    currentFacing = (currentFacing === "user") ? "environment" : "user";
+    feedbackEl.textContent = `Switching camera...`;
+
+    try {
+      await startStream(currentFacing);
+      feedbackEl.textContent = `Camera: ${currentFacing === "user" ? "Front" : "Rear"}`;
+    } catch (err) {
+      feedbackEl.textContent = `Could not switch camera`;
+    }
+  });
 
   function calculateKneeAngle(hip, knee, ankle) {
     const radians =
@@ -163,6 +254,8 @@
   }
 
   function onResults(results) {
+    if (!video.videoWidth || !video.videoHeight) return;
+
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
 
@@ -173,20 +266,18 @@
 
     const lm = results.poseLandmarks;
 
-    const leftHip = lm[23];
-    const leftKnee = lm[25];
-    const leftAnkle = lm[27];
-
-    const rightHip = lm[24];
-    const rightKnee = lm[26];
-    const rightAnkle = lm[28];
+    // Knees
+    const leftHip = lm[23], leftKnee = lm[25], leftAnkle = lm[27];
+    const rightHip = lm[24], rightKnee = lm[26], rightAnkle = lm[28];
 
     const leftAngle = calculateKneeAngle(leftHip, leftKnee, leftAnkle);
     const rightAngle = calculateKneeAngle(rightHip, rightKnee, rightAnkle);
     const avgAngle = (leftAngle + rightAngle) / 2;
 
+    // Rough depth proxy: below parallel tends to be < ~100 degrees
     const squatDepthGood = avgAngle < 100;
 
+    // Ball proxy: use wrists (for MVP)
     const leftWrist = lm[15];
     const rightWrist = lm[16];
     const wristY = Math.min(leftWrist.y, rightWrist.y);
@@ -204,11 +295,13 @@
       feedbackEl.textContent = "Stand up";
     }
 
+    // "Target reached" if wrists go above target line
     if (wristPixelY < targetY && !ballAboveTarget) {
       ballAboveTarget = true;
       feedbackEl.textContent = "Target reached";
     }
 
+    // Count when wrists drop back down
     if (ballAboveTarget && wristPixelY > targetY + 30) {
       if (squatDepthGood) {
         reps += 1;
@@ -220,10 +313,9 @@
       ballAboveTarget = false;
     }
 
-    drawConnectors(ctx, lm, POSE_CONNECTIONS,
-      { color: '#00FF00', lineWidth: 2 });
-    drawLandmarks(ctx, lm,
-      { color: '#FF0000', lineWidth: 1 });
+    // Draw skeleton
+    drawConnectors(ctx, lm, POSE_CONNECTIONS, { color: '#00FF00', lineWidth: 2 });
+    drawLandmarks(ctx, lm, { color: '#FF0000', lineWidth: 1 });
   }
 </script>
 
