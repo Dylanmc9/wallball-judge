@@ -11,18 +11,21 @@
       background: #000;
       color: white;
       text-align: center;
+      overflow: hidden;
     }
     #videoContainer {
-      position: relative;
-      width: 100vw;
-      height: 100vh;
+      position: fixed;
+      inset: 0;
       overflow: hidden;
     }
     video, canvas {
       position: absolute;
-      width: 100%;
-      height: 100%;
+      top: 50%;
+      left: 50%;
+      width: 100vw;
+      height: 100vh;
       object-fit: cover;
+      transform: translate(-50%, -50%);
     }
     #overlay {
       position: absolute;
@@ -83,7 +86,6 @@
   </div>
 </div>
 
-<!-- MediaPipe Libraries -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
@@ -98,23 +100,34 @@
 
   let reps = 0;
   let inSquat = false;
-  let targetHeightRatio = 0.7; // default, will adjust by division
-  let lastBallHeight = null;
+  let targetHeightRatio = 0.7;
   let ballAboveTarget = false;
 
   function startApp(division) {
     startScreen.style.display = "none";
 
     if (division === "women") {
-      targetHeightRatio = 0.68; // slightly lower target
+      targetHeightRatio = 0.68;
     } else {
-      targetHeightRatio = 0.75; // higher target
+      targetHeightRatio = 0.75;
     }
 
     initCamera();
   }
 
-  function initCamera() {
+  async function initCamera() {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      },
+      audio: false
+    });
+
+    video.srcObject = stream;
+    await video.play();
+
     const pose = new Pose({
       locateFile: (file) =>
         `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`,
@@ -135,8 +148,6 @@
       onFrame: async () => {
         await pose.send({ image: video });
       },
-      width: 1280,
-      height: 720,
     });
 
     camera.start();
@@ -155,14 +166,10 @@
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
 
-    ctx.save();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
 
-    if (!results.poseLandmarks) {
-      ctx.restore();
-      return;
-    }
+    if (!results.poseLandmarks) return;
 
     const lm = results.poseLandmarks;
 
@@ -178,14 +185,14 @@
     const rightAngle = calculateKneeAngle(rightHip, rightKnee, rightAnkle);
     const avgAngle = (leftAngle + rightAngle) / 2;
 
-    const squatDepthGood = avgAngle < 100; // approx below parallel
+    const squatDepthGood = avgAngle < 100;
 
-    // Simulated ball tracking using wrist height
     const leftWrist = lm[15];
     const rightWrist = lm[16];
     const wristY = Math.min(leftWrist.y, rightWrist.y);
 
     const targetY = canvas.height * (1 - targetHeightRatio);
+    const wristPixelY = wristY * canvas.height;
 
     if (squatDepthGood && !inSquat) {
       inSquat = true;
@@ -197,16 +204,12 @@
       feedbackEl.textContent = "Stand up";
     }
 
-    // Detect ball above target (using wrist proxy)
-    const wristPixelY = wristY * canvas.height;
-
     if (wristPixelY < targetY && !ballAboveTarget) {
       ballAboveTarget = true;
       feedbackEl.textContent = "Target reached";
     }
 
     if (ballAboveTarget && wristPixelY > targetY + 30) {
-      // Ball came down
       if (squatDepthGood) {
         reps += 1;
         repCountEl.textContent = `Reps: ${reps}`;
@@ -217,15 +220,9 @@
       ballAboveTarget = false;
     }
 
-    drawLandmarks(lm);
-
-    ctx.restore();
-  }
-
-  function drawLandmarks(landmarks) {
-    drawConnectors(ctx, landmarks, POSE_CONNECTIONS,
+    drawConnectors(ctx, lm, POSE_CONNECTIONS,
       { color: '#00FF00', lineWidth: 2 });
-    drawLandmarks(ctx, landmarks,
+    drawLandmarks(ctx, lm,
       { color: '#FF0000', lineWidth: 1 });
   }
 </script>
