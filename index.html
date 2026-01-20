@@ -7,7 +7,6 @@
   <style>
     :root{
       --blue: #1e90ff;
-      --white: #fff;
       --glassBorder: rgba(255,255,255,0.18);
       --textDim: rgba(255,255,255,0.85);
     }
@@ -55,10 +54,18 @@
     }
 
     #repCount {
-      font-size: 1.35rem;
+      font-size: 1.25rem;
       font-weight: 800;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
       white-space: nowrap;
-      letter-spacing: 0.2px;
+    }
+
+    #repCount small {
+      font-size: 0.95rem;
+      opacity: 0.85;
+      font-weight: 600;
     }
 
     #feedback {
@@ -67,13 +74,13 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      max-width: 55vw;
+      max-width: 40vw;
       text-align: right;
       margin-left: auto;
     }
 
     .btn {
-      padding: 10px 14px;
+      padding: 9px 14px;
       font-size: 0.95rem;
       border: none;
       border-radius: 10px;
@@ -83,8 +90,12 @@
       white-space: nowrap;
     }
 
-    /* ===== Start Screen (your new.png look) ===== */
+    .btn.secondary {
+      background: rgba(255,255,255,0.18);
+      border: 1px solid rgba(255,255,255,0.35);
+    }
 
+    /* ===== Start Screen ===== */
     #startScreen {
       position: absolute;
       inset: 0;
@@ -94,7 +105,6 @@
       align-items: center;
       padding: 18px;
       box-sizing: border-box;
-
       background:
         radial-gradient(85% 70% at 15% 20%, rgba(0, 255, 140, 0.22), transparent 60%),
         radial-gradient(85% 70% at 85% 30%, rgba(0, 255, 140, 0.18), transparent 62%),
@@ -107,7 +117,6 @@
       border-radius: 26px;
       padding: 34px 22px;
       text-align: center;
-
       background: linear-gradient(
         180deg,
         rgba(50,50,50,0.42) 0%,
@@ -117,7 +126,6 @@
       box-shadow:
         0 18px 60px rgba(0,0,0,0.55),
         inset 0 1px 0 rgba(255,255,255,0.10);
-
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
     }
@@ -125,8 +133,7 @@
     .startTitle {
       font-size: 2.1rem;
       font-weight: 800;
-      letter-spacing: 0.2px;
-      margin: 0 0 16px 0;
+      margin-bottom: 16px;
     }
 
     .startTip {
@@ -137,17 +144,11 @@
       color: var(--textDim);
     }
 
-    .startTip strong {
-      font-weight: 800;
-      color: rgba(255,255,255,0.95);
-    }
-
     .pillStack {
       display: flex;
       flex-direction: column;
       gap: 14px;
       align-items: center;
-      margin-top: 10px;
     }
 
     .pillBtn {
@@ -156,269 +157,19 @@
       border-radius: 999px;
       font-size: 1.15rem;
       font-weight: 700;
-      letter-spacing: 0.2px;
-
       color: #fff;
       background: rgba(0,0,0,0.18);
       border: 2px solid rgba(255,255,255,0.90);
-
       cursor: pointer;
-      outline: none;
-
-      box-shadow:
-        0 12px 26px rgba(0,0,0,0.35),
-        inset 0 1px 0 rgba(255,255,255,0.12);
-
-      transition: transform 0.08s ease, background 0.12s ease;
-    }
-
-    .pillBtn:active {
-      transform: scale(0.99);
-      background: rgba(255,255,255,0.06);
-    }
-
-    .hintLine {
-      margin-top: 16px;
-      font-size: 0.95rem;
-      color: rgba(255,255,255,0.65);
     }
   </style>
 </head>
 
 <body>
-  <div id="videoContainer">
-    <video id="video" autoplay playsinline muted></video>
-    <canvas id="canvas"></canvas>
+<div id="videoContainer">
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="canvas"></canvas>
 
-    <div id="overlay">
-      <div id="repCount">Reps: 0</div>
-      <button id="flipBtn" class="btn" type="button">Flip</button>
-      <div id="feedback">Ready</div>
-    </div>
-
-    <div id="startScreen">
-      <div class="startCard">
-        <div class="startTitle">Select Division</div>
-        <p class="startTip">
-          Tip: place your phone so your full body is visible.
-          <br><strong>Rear camera gives best tracking.</strong>
-        </p>
-
-        <div class="pillStack">
-          <button class="pillBtn" onclick="startApp('women')">Women</button>
-          <button class="pillBtn" onclick="startApp('men')">Men</button>
-        </div>
-
-        <div class="hintLine">Squat depth is the priority. Use “Flip” anytime.</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- MediaPipe -->
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
-
-  <script>
-    const video = document.getElementById("video");
-    const canvas = document.getElementById("canvas");
-    const ctx = canvas.getContext("2d");
-    const repCountEl = document.getElementById("repCount");
-    const feedbackEl = document.getElementById("feedback");
-    const startScreen = document.getElementById("startScreen");
-    const flipBtn = document.getElementById("flipBtn");
-
-    // ==========================
-    // TUNING (adjust these)
-    // ==========================
-    const DEPTH_MARGIN_PX = 20;     // higher = stricter depth requirement
-    const STAND_MARGIN_PX = 35;     // higher = must stand taller before next rep
-    const BOTTOM_HOLD_FRAMES = 3;   // higher = requires steadier bottom position
-
-    // Rep state
-    let reps = 0;
-    let bottomFrames = 0;
-    let wasAtBottom = false;
-
-    // Camera/pose state
-    let currentFacing = "environment";
-    let currentStream = null;
-    let pose = null;
-
-    let rafId = null;
-    let isProcessing = false;
-    let started = false;
-
-    function startApp(division) {
-      startScreen.style.display = "none";
-
-      // Division kept for future calibration. (Depth logic is the focus.)
-      // You can remove this later if you want.
-      if (division === "women") {
-        // placeholder
-      } else {
-        // placeholder
-      }
-
-      started = true;
-      initPoseOnce();
-      startWithFacing("environment");
-    }
-
-    function initPoseOnce() {
-      if (pose) return;
-
-      pose = new Pose({
-        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`,
-      });
-
-      pose.setOptions({
-        modelComplexity: 1,
-        smoothLandmarks: true,
-        enableSegmentation: false,
-        minDetectionConfidence: 0.5,
-        minTrackingConfidence: 0.5,
-      });
-
-      pose.onResults(onResults);
-    }
-
-    function stopLoop() {
-      if (rafId) cancelAnimationFrame(rafId);
-      rafId = null;
-    }
-
-    function stopStream() {
-      if (currentStream) {
-        currentStream.getTracks().forEach(t => t.stop());
-        currentStream = null;
-      }
-    }
-
-    async function startWithFacing(facing) {
-      stopLoop();
-      stopStream();
-
-      feedbackEl.textContent = `Switching...`;
-
-      const tryConstraints = [
-        { video: { facingMode: { exact: facing }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false },
-        { video: { facingMode: { ideal: facing }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false },
-      ];
-
-      let stream = null;
-      let lastErr = null;
-
-      for (const c of tryConstraints) {
-        try {
-          stream = await navigator.mediaDevices.getUserMedia(c);
-          break;
-        } catch (e) {
-          lastErr = e;
-        }
-      }
-
-      if (!stream) {
-        if (facing === "environment") {
-          feedbackEl.textContent = `Rear blocked — using front`;
-          return startWithFacing("user");
-        }
-        feedbackEl.textContent = `Camera error`;
-        console.error(lastErr);
-        return;
-      }
-
-      currentStream = stream;
-      video.srcObject = currentStream;
-
-      try { await video.play(); } catch (_) {}
-
-      currentFacing = facing;
-      feedbackEl.textContent = `Camera: ${currentFacing === "environment" ? "Rear" : "Front"}`;
-
-      runLoop();
-    }
-
-    function runLoop() {
-      const tick = async () => {
-        rafId = requestAnimationFrame(tick);
-
-        if (!pose || !started) return;
-        if (isProcessing) return;
-        if (video.readyState < 2) return;
-
-        isProcessing = true;
-        try {
-          await pose.send({ image: video });
-        } catch (e) {
-          // ignore transient iOS errors
-        } finally {
-          isProcessing = false;
-        }
-      };
-      tick();
-    }
-
-    flipBtn.addEventListener("click", async () => {
-      if (!started) return;
-      const next = (currentFacing === "environment") ? "user" : "environment";
-      await startWithFacing(next);
-    });
-
-    function onResults(results) {
-      if (!video.videoWidth || !video.videoHeight) return;
-
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
-
-      if (!results.poseLandmarks) return;
-
-      const lm = results.poseLandmarks;
-
-      // Hip and knee positions in pixels (y increases downward)
-      const leftHipY  = lm[23].y * canvas.height;
-      const rightHipY = lm[24].y * canvas.height;
-      const leftKneeY = lm[25].y * canvas.height;
-      const rightKneeY= lm[26].y * canvas.height;
-
-      // Use the lower of each pair for robustness if one side is occluded
-      const hipY = Math.max(leftHipY, rightHipY);
-      const kneeY = Math.max(leftKneeY, rightKneeY);
-
-      // Depth rule: hip must be below knee by margin
-      const depthGood = hipY > (kneeY + DEPTH_MARGIN_PX);
-
-      // Standing rule: hip rises clearly above knee by margin
-      const standing = hipY < (kneeY - STAND_MARGIN_PX);
-
-      // Bottom hold to avoid jitter counts
-      if (depthGood) {
-        bottomFrames += 1;
-        if (bottomFrames >= BOTTOM_HOLD_FRAMES && !wasAtBottom) {
-          wasAtBottom = true;
-          feedbackEl.textContent = "Depth ✅ Now stand to count";
-        }
-      } else {
-        bottomFrames = 0;
-      }
-
-      // Count rep on stand-up AFTER a confirmed bottom
-      if (wasAtBottom && standing) {
-        reps += 1;
-        repCountEl.textContent = `Reps: ${reps}`;
-        feedbackEl.textContent = "REP ✅";
-
-        // reset cycle
-        wasAtBottom = false;
-        bottomFrames = 0;
-      }
-
-      // Draw skeleton (for debugging / user trust)
-      drawConnectors(ctx, lm, POSE_CONNECTIONS, { color: "#00FF00", lineWidth: 2 });
-      drawLandmarks(ctx, lm, { color: "#FF0000", lineWidth: 1 });
-    }
-  </script>
-</body>
-</html>
+  <div id="overlay">
+    <div id="repCount">
+      <span id="reps
