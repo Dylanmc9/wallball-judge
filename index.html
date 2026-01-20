@@ -10,6 +10,7 @@
       --red: #ff5a5a;
       --glassBorder: rgba(255,255,255,0.18);
       --textDim: rgba(255,255,255,0.85);
+      --overlayBg: rgba(0,0,0,0.35);
     }
 
     body {
@@ -37,21 +38,45 @@
       transform: translate(-50%, -50%);
     }
 
+    /* ===== Flash overlay ===== */
+    #flash {
+      position: absolute;
+      inset: 0;
+      z-index: 30;
+      pointer-events: none;
+      opacity: 0;
+      background: rgba(0, 255, 140, 0.28);
+    }
+
+    @keyframes flashGreen {
+      0%   { opacity: 0; }
+      20%  { opacity: 1; }
+      100% { opacity: 0; }
+    }
+
+    #flash.flash {
+      animation: flashGreen 260ms ease-out;
+    }
+
+    /* ===== Two-row overlay ===== */
     #overlay {
       position: absolute;
       top: 0;
       left: 0;
       width: 100%;
-      padding: 12px;
       z-index: 10;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      justify-content: space-between;
-      background: rgba(0,0,0,0.35);
+      padding: 10px 12px 12px 12px;
       box-sizing: border-box;
+      background: var(--overlayBg);
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
+    }
+
+    #overlayTop {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
     }
 
     #repCount {
@@ -61,6 +86,7 @@
       flex-direction: column;
       gap: 2px;
       white-space: nowrap;
+      flex: 0 0 auto;
     }
 
     #repCount small {
@@ -71,26 +97,30 @@
 
     #controls {
       display: flex;
-      gap: 6px;
+      gap: 8px;
       align-items: center;
+      flex: 0 0 auto;
+    }
+
+    #feedbackRow {
+      margin-top: 8px;
     }
 
     #feedback {
       font-size: 1.05rem;
       opacity: 0.95;
+      width: 100%;
+      text-align: left;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      max-width: 40vw;
-      text-align: right;
-      margin-left: auto;
     }
 
     .btn {
       padding: 9px 12px;
       font-size: 0.9rem;
       border: none;
-      border-radius: 10px;
+      border-radius: 14px;
       cursor: pointer;
       white-space: nowrap;
       color: #fff;
@@ -191,6 +221,13 @@
       font-size: 0.95rem;
       color: rgba(255,255,255,0.65);
     }
+
+    /* Small screens: keep buttons comfy */
+    @media (max-width: 380px) {
+      .btn { padding: 8px 10px; font-size: 0.85rem; border-radius: 12px; }
+      #repCount { font-size: 1.05rem; }
+      #feedback { font-size: 0.98rem; }
+    }
   </style>
 </head>
 
@@ -199,19 +236,27 @@
   <video id="video" autoplay playsinline muted></video>
   <canvas id="canvas"></canvas>
 
+  <!-- Green flash overlay -->
+  <div id="flash"></div>
+
+  <!-- Two-row overlay -->
   <div id="overlay">
-    <div id="repCount">
-      <span id="repsText">Reps: 0</span>
-      <small id="breakdownText">Good: 0 • No: 0</small>
+    <div id="overlayTop">
+      <div id="repCount">
+        <span id="repsText">Reps: 0</span>
+        <small id="breakdownText">Good: 0 • No: 0</small>
+      </div>
+
+      <div id="controls">
+        <button id="targetMissBtn" class="btn danger" type="button">Target Miss</button>
+        <button id="resetBtn" class="btn secondary" type="button">Reset</button>
+        <button id="flipBtn" class="btn primary" type="button">Flip</button>
+      </div>
     </div>
 
-    <div id="controls">
-      <button id="targetMissBtn" class="btn danger" type="button">Target Miss</button>
-      <button id="resetBtn" class="btn secondary" type="button">Reset</button>
-      <button id="flipBtn" class="btn primary" type="button">Flip</button>
+    <div id="feedbackRow">
+      <div id="feedback">Ready</div>
     </div>
-
-    <div id="feedback">Ready</div>
   </div>
 
   <div id="startScreen">
@@ -247,14 +292,12 @@
   const flipBtn = document.getElementById("flipBtn");
   const resetBtn = document.getElementById("resetBtn");
   const targetMissBtn = document.getElementById("targetMissBtn");
+  const flashEl = document.getElementById("flash");
 
   // ==========================
   // TUNING
   // ==========================
-  // Depth is "hip below knee by X pixels"
   const DEPTH_MARGIN_PX = 18;      // lower = easier, higher = stricter
-
-  // Wrist movement is ONLY used to separate reps (timing)
   const THROW_LINE_RATIO = 0.35;   // wrists above this = "throw moment"
   const RESET_LINE_RATIO = 0.55;   // wrists below this = ready for next throw
   const MIN_TIME_BETWEEN_REPS_MS = 450;
@@ -267,7 +310,6 @@
   let noReps = 0;
 
   let depthReachedThisCycle = false;
-
   let throwHigh = false;
   let lastRepTime = 0;
 
@@ -285,8 +327,15 @@
     breakdownText.textContent = `Good: ${goodReps} • No: ${noReps}`;
   }
 
+  function flashGreen() {
+    // Restart animation reliably
+    flashEl.classList.remove("flash");
+    // force reflow
+    void flashEl.offsetWidth;
+    flashEl.classList.add("flash");
+  }
+
   function resetCycleOnly() {
-    // Keep counters, but reset the “current rep window”
     depthReachedThisCycle = false;
     throwHigh = false;
   }
@@ -307,20 +356,18 @@
   resetBtn.addEventListener("click", hardResetCounts);
 
   targetMissBtn.addEventListener("click", () => {
-    // Manual judge override: counts as a rep attempt and a no-rep
     reps += 1;
     noReps += 1;
-
     feedbackEl.textContent = "NO REP ❌ (target miss)";
     updateCounters();
 
-    // Don’t let it immediately auto-count from the same throw motion
+    // Prevent immediate auto-count from same throw motion
     lastRepTime = Date.now();
     resetCycleOnly();
   });
 
   function startApp(division) {
-    // Division currently not used (kept for future). App logic is identical either way.
+    // Division currently not used (kept for future)
     startScreen.style.display = "none";
     started = true;
 
@@ -458,7 +505,7 @@
     const depthGoodNow = hipY > (kneeY + DEPTH_MARGIN_PX);
     if (depthGoodNow) depthReachedThisCycle = true;
 
-    // Knee line: turns green once depth has been hit during this cycle
+    // Knee line: turns green once depth hit during this cycle
     ctx.save();
     ctx.beginPath();
     ctx.lineWidth = 6;
@@ -467,7 +514,7 @@
     ctx.lineTo(canvas.width, kneeY);
     ctx.stroke();
 
-    // Hip dot: green if currently deep enough, red otherwise
+    // Hip dot
     const hipX = ((lm[23].x + lm[24].x) / 2) * canvas.width;
     ctx.beginPath();
     ctx.fillStyle = depthGoodNow ? "rgba(0,255,140,0.95)" : "rgba(255,80,80,0.95)";
@@ -498,6 +545,7 @@
         if (depthReachedThisCycle) {
           goodReps += 1;
           feedbackEl.textContent = "GOOD REP ✅ (depth reached)";
+          flashGreen();
         } else {
           noReps += 1;
           feedbackEl.textContent = "NO REP ❌ (depth not reached)";
@@ -508,7 +556,7 @@
         throwHigh = true;
         lastRepTime = now;
 
-        // Reset for next rep cycle immediately (continuous)
+        // Reset for next rep cycle immediately
         depthReachedThisCycle = false;
       }
     }
