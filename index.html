@@ -8,7 +8,6 @@
     :root{
       --blue: #1e90ff;
       --white: #fff;
-      --glass: rgba(25, 25, 25, 0.40);
       --glassBorder: rgba(255,255,255,0.18);
       --textDim: rgba(255,255,255,0.85);
     }
@@ -68,7 +67,7 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      max-width: 45vw;
+      max-width: 55vw;
       text-align: right;
       margin-left: auto;
     }
@@ -84,7 +83,7 @@
       white-space: nowrap;
     }
 
-    /* ===== New Start Screen (matches your new.png) ===== */
+    /* ===== Start Screen (your new.png look) ===== */
 
     #startScreen {
       position: absolute;
@@ -96,7 +95,6 @@
       padding: 18px;
       box-sizing: border-box;
 
-      /* green glow background */
       background:
         radial-gradient(85% 70% at 15% 20%, rgba(0, 255, 140, 0.22), transparent 60%),
         radial-gradient(85% 70% at 85% 30%, rgba(0, 255, 140, 0.18), transparent 62%),
@@ -198,22 +196,20 @@
       <div id="feedback">Ready</div>
     </div>
 
-    <!-- New Start Screen UI -->
     <div id="startScreen">
       <div class="startCard">
         <div class="startTitle">Select Division</div>
         <p class="startTip">
           Tip: place your phone so your full body is visible.
-          For front facing camera we recommend using a tripod.
           <br><strong>Rear camera gives best tracking.</strong>
         </p>
 
         <div class="pillStack">
-          <button class="pillBtn" onclick="startApp('women')">Women (9 ft target)</button>
-          <button class="pillBtn" onclick="startApp('men')">Men (10 ft target)</button>
+          <button class="pillBtn" onclick="startApp('women')">Women</button>
+          <button class="pillBtn" onclick="startApp('men')">Men</button>
         </div>
 
-        <div class="hintLine">You can switch cameras with “Flip” anytime.</div>
+        <div class="hintLine">Squat depth is the priority. Use “Flip” anytime.</div>
       </div>
     </div>
   </div>
@@ -231,11 +227,17 @@
     const startScreen = document.getElementById("startScreen");
     const flipBtn = document.getElementById("flipBtn");
 
-    // Rep logic state
+    // ==========================
+    // TUNING (adjust these)
+    // ==========================
+    const DEPTH_MARGIN_PX = 20;     // higher = stricter depth requirement
+    const STAND_MARGIN_PX = 35;     // higher = must stand taller before next rep
+    const BOTTOM_HOLD_FRAMES = 3;   // higher = requires steadier bottom position
+
+    // Rep state
     let reps = 0;
-    let inSquat = false;
-    let targetHeightRatio = 0.7;
-    let ballAboveTarget = false;
+    let bottomFrames = 0;
+    let wasAtBottom = false;
 
     // Camera/pose state
     let currentFacing = "environment";
@@ -249,8 +251,13 @@
     function startApp(division) {
       startScreen.style.display = "none";
 
-      if (division === "women") targetHeightRatio = 0.68;
-      if (division === "men") targetHeightRatio = 0.75;
+      // Division kept for future calibration. (Depth logic is the focus.)
+      // You can remove this later if you want.
+      if (division === "women") {
+        // placeholder
+      } else {
+        // placeholder
+      }
 
       started = true;
       initPoseOnce();
@@ -343,7 +350,7 @@
         try {
           await pose.send({ image: video });
         } catch (e) {
-          // Ignore transient iOS frame errors
+          // ignore transient iOS errors
         } finally {
           isProcessing = false;
         }
@@ -356,15 +363,6 @@
       const next = (currentFacing === "environment") ? "user" : "environment";
       await startWithFacing(next);
     });
-
-    function calculateKneeAngle(hip, knee, ankle) {
-      const radians =
-        Math.atan2(ankle.y - knee.y, ankle.x - knee.x) -
-        Math.atan2(hip.y - knee.y, hip.x - knee.x);
-      let angle = Math.abs((radians * 180.0) / Math.PI);
-      if (angle > 180.0) angle = 360.0 - angle;
-      return angle;
-    }
 
     function onResults(results) {
       if (!video.videoWidth || !video.videoHeight) return;
@@ -379,49 +377,45 @@
 
       const lm = results.poseLandmarks;
 
-      const leftHip = lm[23], leftKnee = lm[25], leftAnkle = lm[27];
-      const rightHip = lm[24], rightKnee = lm[26], rightAnkle = lm[28];
+      // Hip and knee positions in pixels (y increases downward)
+      const leftHipY  = lm[23].y * canvas.height;
+      const rightHipY = lm[24].y * canvas.height;
+      const leftKneeY = lm[25].y * canvas.height;
+      const rightKneeY= lm[26].y * canvas.height;
 
-      const leftAngle = calculateKneeAngle(leftHip, leftKnee, leftAnkle);
-      const rightAngle = calculateKneeAngle(rightHip, rightKnee, rightAnkle);
-      const avgAngle = (leftAngle + rightAngle) / 2;
+      // Use the lower of each pair for robustness if one side is occluded
+      const hipY = Math.max(leftHipY, rightHipY);
+      const kneeY = Math.max(leftKneeY, rightKneeY);
 
-      const squatDepthGood = avgAngle < 100;
+      // Depth rule: hip must be below knee by margin
+      const depthGood = hipY > (kneeY + DEPTH_MARGIN_PX);
 
-      // MVP proxy for ball: wrists
-      const leftWrist = lm[15];
-      const rightWrist = lm[16];
-      const wristY = Math.min(leftWrist.y, rightWrist.y);
+      // Standing rule: hip rises clearly above knee by margin
+      const standing = hipY < (kneeY - STAND_MARGIN_PX);
 
-      const targetY = canvas.height * (1 - targetHeightRatio);
-      const wristPixelY = wristY * canvas.height;
-
-      if (squatDepthGood && !inSquat) {
-        inSquat = true;
-        feedbackEl.textContent = "Squat depth good";
-      }
-
-      if (!squatDepthGood && inSquat) {
-        inSquat = false;
-        feedbackEl.textContent = "Stand up";
-      }
-
-      if (wristPixelY < targetY && !ballAboveTarget) {
-        ballAboveTarget = true;
-        feedbackEl.textContent = "Target reached";
-      }
-
-      if (ballAboveTarget && wristPixelY > targetY + 30) {
-        if (squatDepthGood) {
-          reps += 1;
-          repCountEl.textContent = `Reps: ${reps}`;
-          feedbackEl.textContent = "GOOD REP ✅";
-        } else {
-          feedbackEl.textContent = "NO REP ❌";
+      // Bottom hold to avoid jitter counts
+      if (depthGood) {
+        bottomFrames += 1;
+        if (bottomFrames >= BOTTOM_HOLD_FRAMES && !wasAtBottom) {
+          wasAtBottom = true;
+          feedbackEl.textContent = "Depth ✅ Now stand to count";
         }
-        ballAboveTarget = false;
+      } else {
+        bottomFrames = 0;
       }
 
+      // Count rep on stand-up AFTER a confirmed bottom
+      if (wasAtBottom && standing) {
+        reps += 1;
+        repCountEl.textContent = `Reps: ${reps}`;
+        feedbackEl.textContent = "REP ✅";
+
+        // reset cycle
+        wasAtBottom = false;
+        bottomFrames = 0;
+      }
+
+      // Draw skeleton (for debugging / user trust)
       drawConnectors(ctx, lm, POSE_CONNECTIONS, { color: "#00FF00", lineWidth: 2 });
       drawLandmarks(ctx, lm, { color: "#FF0000", lineWidth: 1 });
     }
