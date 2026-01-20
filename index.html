@@ -7,7 +7,9 @@
   <style>
     :root{
       --blue: #1e90ff;
-      --red: #ff5a5a;
+      --red: #ff3b3b;
+      --green: rgba(0, 255, 140, 0.28);
+      --redFlash: rgba(255, 60, 60, 0.28);
       --glassBorder: rgba(255,255,255,0.18);
       --textDim: rgba(255,255,255,0.85);
       --overlayBg: rgba(0,0,0,0.35);
@@ -45,17 +47,16 @@
       z-index: 30;
       pointer-events: none;
       opacity: 0;
-      background: rgba(0, 255, 140, 0.28);
     }
 
-    @keyframes flashGreen {
+    @keyframes flashAnim {
       0%   { opacity: 0; }
       20%  { opacity: 1; }
       100% { opacity: 0; }
     }
 
     #flash.flash {
-      animation: flashGreen 260ms ease-out;
+      animation: flashAnim 260ms ease-out;
     }
 
     /* ===== Two-row overlay ===== */
@@ -90,7 +91,7 @@
     }
 
     #repCount small {
-      font-size: 0.9rem;
+      font-size: 0.95rem;
       opacity: 0.85;
       font-weight: 600;
     }
@@ -182,7 +183,7 @@
       max-width: 420px;
       font-size: 1.05rem;
       line-height: 1.45;
-      color: var(--textDim);
+      color: rgba(255,255,255,0.85);
     }
 
     .startTip strong {
@@ -222,7 +223,6 @@
       color: rgba(255,255,255,0.65);
     }
 
-    /* Small screens: keep buttons comfy */
     @media (max-width: 380px) {
       .btn { padding: 8px 10px; font-size: 0.85rem; border-radius: 12px; }
       #repCount { font-size: 1.05rem; }
@@ -236,15 +236,14 @@
   <video id="video" autoplay playsinline muted></video>
   <canvas id="canvas"></canvas>
 
-  <!-- Green flash overlay -->
+  <!-- Flash overlay -->
   <div id="flash"></div>
 
-  <!-- Two-row overlay -->
   <div id="overlay">
     <div id="overlayTop">
       <div id="repCount">
         <span id="repsText">Reps: 0</span>
-        <small id="breakdownText">Good: 0 • No: 0</small>
+        <small id="noRepsText">No Reps: 0</small>
       </div>
 
       <div id="controls">
@@ -275,7 +274,6 @@
   </div>
 </div>
 
-<!-- MediaPipe -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
 
@@ -285,7 +283,7 @@
   const ctx = canvas.getContext("2d");
 
   const repsText = document.getElementById("repsText");
-  const breakdownText = document.getElementById("breakdownText");
+  const noRepsText = document.getElementById("noRepsText");
   const feedbackEl = document.getElementById("feedback");
   const startScreen = document.getElementById("startScreen");
 
@@ -294,46 +292,43 @@
   const targetMissBtn = document.getElementById("targetMissBtn");
   const flashEl = document.getElementById("flash");
 
-  // ==========================
-  // TUNING
-  // ==========================
-  const DEPTH_MARGIN_PX = 18;      // lower = easier, higher = stricter
-  const THROW_LINE_RATIO = 0.35;   // wrists above this = "throw moment"
-  const RESET_LINE_RATIO = 0.55;   // wrists below this = ready for next throw
+  // Tuning
+  const DEPTH_MARGIN_PX = 18;
+  const THROW_LINE_RATIO = 0.35;
+  const RESET_LINE_RATIO = 0.55;
   const MIN_TIME_BETWEEN_REPS_MS = 450;
 
-  // ==========================
-  // Rep state
-  // ==========================
-  let reps = 0;
-  let goodReps = 0;
+  // Counters
+  let reps = 0;     // GOOD reps only
   let noReps = 0;
 
+  // Rep-cycle state
   let depthReachedThisCycle = false;
   let throwHigh = false;
   let lastRepTime = 0;
 
-  // Camera/pose state
+  // Camera/pose
   let currentFacing = "environment";
   let currentStream = null;
   let pose = null;
-
   let rafId = null;
   let isProcessing = false;
   let started = false;
 
   function updateCounters() {
     repsText.textContent = `Reps: ${reps}`;
-    breakdownText.textContent = `Good: ${goodReps} • No: ${noReps}`;
+    noRepsText.textContent = `No Reps: ${noReps}`;
   }
 
-  function flashGreen() {
-    // Restart animation reliably
+  function flash(color) {
     flashEl.classList.remove("flash");
-    // force reflow
-    void flashEl.offsetWidth;
+    flashEl.style.background = color;
+    void flashEl.offsetWidth; // reflow
     flashEl.classList.add("flash");
   }
+
+  function flashGreen() { flash(getComputedStyle(document.documentElement).getPropertyValue('--green') || 'rgba(0,255,140,0.28)'); }
+  function flashRed()   { flash(getComputedStyle(document.documentElement).getPropertyValue('--redFlash') || 'rgba(255,60,60,0.28)'); }
 
   function resetCycleOnly() {
     depthReachedThisCycle = false;
@@ -342,13 +337,9 @@
 
   function hardResetCounts() {
     reps = 0;
-    goodReps = 0;
     noReps = 0;
-
-    depthReachedThisCycle = false;
-    throwHigh = false;
     lastRepTime = 0;
-
+    resetCycleOnly();
     feedbackEl.textContent = "Reset ✅";
     updateCounters();
   }
@@ -356,21 +347,20 @@
   resetBtn.addEventListener("click", hardResetCounts);
 
   targetMissBtn.addEventListener("click", () => {
-    reps += 1;
+    // Manual no-rep — does NOT count as a rep
     noReps += 1;
     feedbackEl.textContent = "NO REP ❌ (target miss)";
     updateCounters();
+    flashRed();
 
-    // Prevent immediate auto-count from same throw motion
+    // Prevent immediate auto-trigger from same throw motion
     lastRepTime = Date.now();
     resetCycleOnly();
   });
 
   function startApp(division) {
-    // Division currently not used (kept for future)
     startScreen.style.display = "none";
     started = true;
-
     updateCounters();
     initPoseOnce();
     startWithFacing("environment");
@@ -463,7 +453,6 @@
       try {
         await pose.send({ image: video });
       } catch (e) {
-        // ignore transient iOS errors
       } finally {
         isProcessing = false;
       }
@@ -493,7 +482,7 @@
 
     const lm = results.poseLandmarks;
 
-    // ---- Depth line + hip marker ----
+    // Depth
     const leftHipY  = lm[23].y * canvas.height;
     const rightHipY = lm[24].y * canvas.height;
     const leftKneeY = lm[25].y * canvas.height;
@@ -505,7 +494,7 @@
     const depthGoodNow = hipY > (kneeY + DEPTH_MARGIN_PX);
     if (depthGoodNow) depthReachedThisCycle = true;
 
-    // Knee line: turns green once depth hit during this cycle
+    // Knee line
     ctx.save();
     ctx.beginPath();
     ctx.lineWidth = 6;
@@ -527,7 +516,7 @@
     ctx.fillText(depthGoodNow ? "DEPTH ✅" : "DEPTH ⛔", 18, 44);
     ctx.restore();
 
-    // ---- Rep separation using wrists (timing only) ----
+    // Throw timing (wrists)
     const leftWristY = lm[15].y * canvas.height;
     const rightWristY = lm[16].y * canvas.height;
     const wristY = Math.min(leftWristY, rightWristY);
@@ -537,36 +526,32 @@
 
     const now = Date.now();
 
-    // Evaluate at "throw moment"
     if (!throwHigh && wristY < throwLineY) {
       if (now - lastRepTime > MIN_TIME_BETWEEN_REPS_MS) {
-        reps += 1;
 
         if (depthReachedThisCycle) {
-          goodReps += 1;
-          feedbackEl.textContent = "GOOD REP ✅ (depth reached)";
+          reps += 1;
+          feedbackEl.textContent = "GOOD REP ✅";
           flashGreen();
         } else {
           noReps += 1;
           feedbackEl.textContent = "NO REP ❌ (depth not reached)";
+          flashRed();
         }
 
         updateCounters();
 
         throwHigh = true;
         lastRepTime = now;
-
-        // Reset for next rep cycle immediately
-        depthReachedThisCycle = false;
+        depthReachedThisCycle = false; // next rep window
       }
     }
 
-    // Ready for next rep once wrists come back down
     if (throwHigh && wristY > resetLineY) {
       throwHigh = false;
     }
 
-    // Skeleton overlay (optional)
+    // Skeleton overlay
     drawConnectors(ctx, lm, POSE_CONNECTIONS, { color: "#00FF00", lineWidth: 2 });
     drawLandmarks(ctx, lm, { color: "#FF0000", lineWidth: 1 });
   }
