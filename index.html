@@ -5,6 +5,14 @@
   <title>Wall Ball Judge</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
+    :root{
+      --blue: #1e90ff;
+      --white: #fff;
+      --glass: rgba(25, 25, 25, 0.40);
+      --glassBorder: rgba(255,255,255,0.18);
+      --textDim: rgba(255,255,255,0.85);
+    }
+
     body {
       margin: 0;
       font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
@@ -12,12 +20,14 @@
       color: white;
       overflow: hidden;
     }
+
     #videoContainer {
       position: fixed;
       inset: 0;
       overflow: hidden;
       background: #000;
     }
+
     video, canvas {
       position: absolute;
       top: 50%;
@@ -27,6 +37,7 @@
       object-fit: cover;
       transform: translate(-50%, -50%);
     }
+
     #overlay {
       position: absolute;
       top: 0;
@@ -38,270 +49,382 @@
       align-items: center;
       gap: 10px;
       justify-content: space-between;
-      background: rgba(0,0,0,0.4);
+      background: rgba(0,0,0,0.35);
       box-sizing: border-box;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
     }
-    #repCount { font-size: 1.4rem; font-weight: 800; white-space: nowrap; }
-    #feedback { font-size: 1.05rem; opacity: 0.95; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 45vw; text-align: right; margin-left: auto; }
+
+    #repCount {
+      font-size: 1.35rem;
+      font-weight: 800;
+      white-space: nowrap;
+      letter-spacing: 0.2px;
+    }
+
+    #feedback {
+      font-size: 1.05rem;
+      opacity: 0.95;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 45vw;
+      text-align: right;
+      margin-left: auto;
+    }
+
     .btn {
       padding: 10px 14px;
       font-size: 0.95rem;
       border: none;
       border-radius: 10px;
-      background: #1e90ff;
+      background: var(--blue);
       color: #fff;
       cursor: pointer;
       white-space: nowrap;
     }
+
+    /* ===== New Start Screen (matches your new.png) ===== */
+
     #startScreen {
       position: absolute;
       inset: 0;
-      background: rgba(0,0,0,0.92);
+      z-index: 20;
       display: flex;
-      flex-direction: column;
       justify-content: center;
       align-items: center;
-      z-index: 20;
-      padding: 20px;
+      padding: 18px;
       box-sizing: border-box;
-      text-align: center;
+
+      /* green glow background */
+      background:
+        radial-gradient(85% 70% at 15% 20%, rgba(0, 255, 140, 0.22), transparent 60%),
+        radial-gradient(85% 70% at 85% 30%, rgba(0, 255, 140, 0.18), transparent 62%),
+        radial-gradient(90% 75% at 60% 90%, rgba(0, 255, 140, 0.14), transparent 55%),
+        rgba(0,0,0,0.86);
     }
-    #startScreen h2 { margin: 0 0 14px 0; font-size: 1.6rem; }
-    #startScreen p { margin: 0 0 18px 0; opacity: 0.85; max-width: 420px; }
-    .stack { display: flex; flex-direction: column; gap: 10px; width: min(420px, 90vw); }
+
+    .startCard {
+      width: min(520px, 92vw);
+      border-radius: 26px;
+      padding: 34px 22px;
+      text-align: center;
+
+      background: linear-gradient(
+        180deg,
+        rgba(50,50,50,0.42) 0%,
+        rgba(18,18,18,0.34) 100%
+      );
+      border: 1px solid var(--glassBorder);
+      box-shadow:
+        0 18px 60px rgba(0,0,0,0.55),
+        inset 0 1px 0 rgba(255,255,255,0.10);
+
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+
+    .startTitle {
+      font-size: 2.1rem;
+      font-weight: 800;
+      letter-spacing: 0.2px;
+      margin: 0 0 16px 0;
+    }
+
+    .startTip {
+      margin: 0 auto 28px auto;
+      max-width: 420px;
+      font-size: 1.05rem;
+      line-height: 1.45;
+      color: var(--textDim);
+    }
+
+    .startTip strong {
+      font-weight: 800;
+      color: rgba(255,255,255,0.95);
+    }
+
+    .pillStack {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      align-items: center;
+      margin-top: 10px;
+    }
+
+    .pillBtn {
+      width: min(360px, 78vw);
+      padding: 14px 18px;
+      border-radius: 999px;
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+
+      color: #fff;
+      background: rgba(0,0,0,0.18);
+      border: 2px solid rgba(255,255,255,0.90);
+
+      cursor: pointer;
+      outline: none;
+
+      box-shadow:
+        0 12px 26px rgba(0,0,0,0.35),
+        inset 0 1px 0 rgba(255,255,255,0.12);
+
+      transition: transform 0.08s ease, background 0.12s ease;
+    }
+
+    .pillBtn:active {
+      transform: scale(0.99);
+      background: rgba(255,255,255,0.06);
+    }
+
+    .hintLine {
+      margin-top: 16px;
+      font-size: 0.95rem;
+      color: rgba(255,255,255,0.65);
+    }
   </style>
 </head>
+
 <body>
+  <div id="videoContainer">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="canvas"></canvas>
 
-<div id="videoContainer">
-  <video id="video" autoplay playsinline muted></video>
-  <canvas id="canvas"></canvas>
+    <div id="overlay">
+      <div id="repCount">Reps: 0</div>
+      <button id="flipBtn" class="btn" type="button">Flip</button>
+      <div id="feedback">Ready</div>
+    </div>
 
-  <div id="overlay">
-    <div id="repCount">Reps: 0</div>
-    <button id="flipBtn" class="btn" type="button">Flip</button>
-    <div id="feedback">Ready</div>
-  </div>
+    <!-- New Start Screen UI -->
+    <div id="startScreen">
+      <div class="startCard">
+        <div class="startTitle">Select Division</div>
+        <p class="startTip">
+          Tip: place your phone so your full body is visible.
+          For front facing camera we recommend using a tripod.
+          <br><strong>Rear camera gives best tracking.</strong>
+        </p>
 
-  <div id="startScreen">
-    <h2>Select Division</h2>
-    <p>Tip: place your phone so your full body is visible. Rear camera gives best tracking.</p>
-    <div class="stack">
-      <button class="btn" style="width:100%;" onclick="startApp('women')">Women (9 ft target)</button>
-      <button class="btn" style="width:100%;" onclick="startApp('men')">Men (10 ft target)</button>
+        <div class="pillStack">
+          <button class="pillBtn" onclick="startApp('women')">Women (9 ft target)</button>
+          <button class="pillBtn" onclick="startApp('men')">Men (10 ft target)</button>
+        </div>
+
+        <div class="hintLine">You can switch cameras with “Flip” anytime.</div>
+      </div>
     </div>
   </div>
-</div>
 
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+  <!-- MediaPipe -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
 
-<script>
-  const video = document.getElementById("video");
-  const canvas = document.getElementById("canvas");
-  const ctx = canvas.getContext("2d");
-  const repCountEl = document.getElementById("repCount");
-  const feedbackEl = document.getElementById("feedback");
-  const startScreen = document.getElementById("startScreen");
-  const flipBtn = document.getElementById("flipBtn");
+  <script>
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    const repCountEl = document.getElementById("repCount");
+    const feedbackEl = document.getElementById("feedback");
+    const startScreen = document.getElementById("startScreen");
+    const flipBtn = document.getElementById("flipBtn");
 
-  // Rep logic state
-  let reps = 0;
-  let inSquat = false;
-  let targetHeightRatio = 0.7;
-  let ballAboveTarget = false;
+    // Rep logic state
+    let reps = 0;
+    let inSquat = false;
+    let targetHeightRatio = 0.7;
+    let ballAboveTarget = false;
 
-  // Camera/pose state
-  let currentFacing = "environment"; // start with rear attempt
-  let currentStream = null;
-  let pose = null;
+    // Camera/pose state
+    let currentFacing = "environment";
+    let currentStream = null;
+    let pose = null;
 
-  let rafId = null;
-  let isProcessing = false; // prevents overlap pose.send()
-  let started = false;
+    let rafId = null;
+    let isProcessing = false;
+    let started = false;
 
-  function startApp(division) {
-    startScreen.style.display = "none";
-    if (division === "women") targetHeightRatio = 0.68;
-    if (division === "men") targetHeightRatio = 0.75;
-    started = true;
-    initPoseOnce();
-    startWithFacing("environment");
-  }
+    function startApp(division) {
+      startScreen.style.display = "none";
 
-  function initPoseOnce() {
-    if (pose) return;
+      if (division === "women") targetHeightRatio = 0.68;
+      if (division === "men") targetHeightRatio = 0.75;
 
-    pose = new Pose({
-      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`,
+      started = true;
+      initPoseOnce();
+      startWithFacing("environment");
+    }
+
+    function initPoseOnce() {
+      if (pose) return;
+
+      pose = new Pose({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`,
+      });
+
+      pose.setOptions({
+        modelComplexity: 1,
+        smoothLandmarks: true,
+        enableSegmentation: false,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5,
+      });
+
+      pose.onResults(onResults);
+    }
+
+    function stopLoop() {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+
+    function stopStream() {
+      if (currentStream) {
+        currentStream.getTracks().forEach(t => t.stop());
+        currentStream = null;
+      }
+    }
+
+    async function startWithFacing(facing) {
+      stopLoop();
+      stopStream();
+
+      feedbackEl.textContent = `Switching...`;
+
+      const tryConstraints = [
+        { video: { facingMode: { exact: facing }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false },
+        { video: { facingMode: { ideal: facing }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false },
+      ];
+
+      let stream = null;
+      let lastErr = null;
+
+      for (const c of tryConstraints) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(c);
+          break;
+        } catch (e) {
+          lastErr = e;
+        }
+      }
+
+      if (!stream) {
+        if (facing === "environment") {
+          feedbackEl.textContent = `Rear blocked — using front`;
+          return startWithFacing("user");
+        }
+        feedbackEl.textContent = `Camera error`;
+        console.error(lastErr);
+        return;
+      }
+
+      currentStream = stream;
+      video.srcObject = currentStream;
+
+      try { await video.play(); } catch (_) {}
+
+      currentFacing = facing;
+      feedbackEl.textContent = `Camera: ${currentFacing === "environment" ? "Rear" : "Front"}`;
+
+      runLoop();
+    }
+
+    function runLoop() {
+      const tick = async () => {
+        rafId = requestAnimationFrame(tick);
+
+        if (!pose || !started) return;
+        if (isProcessing) return;
+        if (video.readyState < 2) return;
+
+        isProcessing = true;
+        try {
+          await pose.send({ image: video });
+        } catch (e) {
+          // Ignore transient iOS frame errors
+        } finally {
+          isProcessing = false;
+        }
+      };
+      tick();
+    }
+
+    flipBtn.addEventListener("click", async () => {
+      if (!started) return;
+      const next = (currentFacing === "environment") ? "user" : "environment";
+      await startWithFacing(next);
     });
 
-    pose.setOptions({
-      modelComplexity: 1,
-      smoothLandmarks: true,
-      enableSegmentation: false,
-      minDetectionConfidence: 0.5,
-      minTrackingConfidence: 0.5,
-    });
-
-    pose.onResults(onResults);
-  }
-
-  function stopLoop() {
-    if (rafId) cancelAnimationFrame(rafId);
-    rafId = null;
-  }
-
-  function stopStream() {
-    if (currentStream) {
-      currentStream.getTracks().forEach(t => t.stop());
-      currentStream = null;
+    function calculateKneeAngle(hip, knee, ankle) {
+      const radians =
+        Math.atan2(ankle.y - knee.y, ankle.x - knee.x) -
+        Math.atan2(hip.y - knee.y, hip.x - knee.x);
+      let angle = Math.abs((radians * 180.0) / Math.PI);
+      if (angle > 180.0) angle = 360.0 - angle;
+      return angle;
     }
-  }
 
-  async function startWithFacing(facing) {
-    // Full safe restart
-    stopLoop();
-    stopStream();
+    function onResults(results) {
+      if (!video.videoWidth || !video.videoHeight) return;
 
-    feedbackEl.textContent = `Switching...`;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
 
-    // iOS is picky: try exact first, then ideal.
-    const tryConstraints = [
-      { video: { facingMode: { exact: facing }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false },
-      { video: { facingMode: { ideal: facing }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false },
-    ];
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
 
-    let stream = null;
-    let lastErr = null;
+      if (!results.poseLandmarks) return;
 
-    for (const c of tryConstraints) {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia(c);
-        break;
-      } catch (e) {
-        lastErr = e;
+      const lm = results.poseLandmarks;
+
+      const leftHip = lm[23], leftKnee = lm[25], leftAnkle = lm[27];
+      const rightHip = lm[24], rightKnee = lm[26], rightAnkle = lm[28];
+
+      const leftAngle = calculateKneeAngle(leftHip, leftKnee, leftAnkle);
+      const rightAngle = calculateKneeAngle(rightHip, rightKnee, rightAnkle);
+      const avgAngle = (leftAngle + rightAngle) / 2;
+
+      const squatDepthGood = avgAngle < 100;
+
+      // MVP proxy for ball: wrists
+      const leftWrist = lm[15];
+      const rightWrist = lm[16];
+      const wristY = Math.min(leftWrist.y, rightWrist.y);
+
+      const targetY = canvas.height * (1 - targetHeightRatio);
+      const wristPixelY = wristY * canvas.height;
+
+      if (squatDepthGood && !inSquat) {
+        inSquat = true;
+        feedbackEl.textContent = "Squat depth good";
       }
-    }
 
-    if (!stream) {
-      // If rear fails, fall back to front automatically
-      if (facing === "environment") {
-        feedbackEl.textContent = `Rear blocked — using front`;
-        return startWithFacing("user");
+      if (!squatDepthGood && inSquat) {
+        inSquat = false;
+        feedbackEl.textContent = "Stand up";
       }
-      feedbackEl.textContent = `Camera error`;
-      console.error(lastErr);
-      return;
-    }
 
-    currentStream = stream;
-    video.srcObject = currentStream;
-
-    // iOS needs a moment after setting srcObject
-    try { await video.play(); } catch (_) {}
-
-    currentFacing = facing;
-    feedbackEl.textContent = `Camera: ${currentFacing === "environment" ? "Rear" : "Front"}`;
-
-    // Kick off pose processing loop
-    runLoop();
-  }
-
-  function runLoop() {
-    const tick = async () => {
-      rafId = requestAnimationFrame(tick);
-
-      if (!pose || !started) return;
-      if (isProcessing) return;
-      if (video.readyState < 2) return; // not enough data
-
-      isProcessing = true;
-      try {
-        await pose.send({ image: video });
-      } catch (e) {
-        // If a frame fails during switching, ignore
-        // (iOS sometimes throws transient errors)
-      } finally {
-        isProcessing = false;
+      if (wristPixelY < targetY && !ballAboveTarget) {
+        ballAboveTarget = true;
+        feedbackEl.textContent = "Target reached";
       }
-    };
-    tick();
-  }
 
-  flipBtn.addEventListener("click", async () => {
-    if (!started) return;
-    const next = (currentFacing === "environment") ? "user" : "environment";
-    await startWithFacing(next);
-  });
-
-  function calculateKneeAngle(hip, knee, ankle) {
-    const radians =
-      Math.atan2(ankle.y - knee.y, ankle.x - knee.x) -
-      Math.atan2(hip.y - knee.y, hip.x - knee.x);
-    let angle = Math.abs((radians * 180.0) / Math.PI);
-    if (angle > 180.0) angle = 360.0 - angle;
-    return angle;
-  }
-
-  function onResults(results) {
-    if (!video.videoWidth || !video.videoHeight) return;
-
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
-
-    if (!results.poseLandmarks) return;
-
-    const lm = results.poseLandmarks;
-
-    const leftHip = lm[23], leftKnee = lm[25], leftAnkle = lm[27];
-    const rightHip = lm[24], rightKnee = lm[26], rightAnkle = lm[28];
-
-    const leftAngle = calculateKneeAngle(leftHip, leftKnee, leftAnkle);
-    const rightAngle = calculateKneeAngle(rightHip, rightKnee, rightAnkle);
-    const avgAngle = (leftAngle + rightAngle) / 2;
-
-    const squatDepthGood = avgAngle < 100;
-
-    const leftWrist = lm[15];
-    const rightWrist = lm[16];
-    const wristY = Math.min(leftWrist.y, rightWrist.y);
-
-    const targetY = canvas.height * (1 - targetHeightRatio);
-    const wristPixelY = wristY * canvas.height;
-
-    if (squatDepthGood && !inSquat) {
-      inSquat = true;
-      feedbackEl.textContent = "Squat depth good";
-    }
-
-    if (!squatDepthGood && inSquat) {
-      inSquat = false;
-      feedbackEl.textContent = "Stand up";
-    }
-
-    if (wristPixelY < targetY && !ballAboveTarget) {
-      ballAboveTarget = true;
-      feedbackEl.textContent = "Target reached";
-    }
-
-    if (ballAboveTarget && wristPixelY > targetY + 30) {
-      if (squatDepthGood) {
-        reps += 1;
-        repCountEl.textContent = `Reps: ${reps}`;
-        feedbackEl.textContent = "GOOD REP ✅";
-      } else {
-        feedbackEl.textContent = "NO REP ❌";
+      if (ballAboveTarget && wristPixelY > targetY + 30) {
+        if (squatDepthGood) {
+          reps += 1;
+          repCountEl.textContent = `Reps: ${reps}`;
+          feedbackEl.textContent = "GOOD REP ✅";
+        } else {
+          feedbackEl.textContent = "NO REP ❌";
+        }
+        ballAboveTarget = false;
       }
-      ballAboveTarget = false;
-    }
 
-    drawConnectors(ctx, lm, POSE_CONNECTIONS, { color: "#00FF00", lineWidth: 2 });
-    drawLandmarks(ctx, lm, { color: "#FF0000", lineWidth: 1 });
-  }
-</script>
+      drawConnectors(ctx, lm, POSE_CONNECTIONS, { color: "#00FF00", lineWidth: 2 });
+      drawLandmarks(ctx, lm, { color: "#FF0000", lineWidth: 1 });
+    }
+  </script>
 </body>
 </html>
