@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     :root{
-      --blue: #1e90ff;
+      --flipGreen: #087862;
       --red: rgba(255, 90, 90, 0.95);
       --glass: rgba(255,255,255,0.10);
       --glass2: rgba(255,255,255,0.06);
@@ -17,7 +17,6 @@
       --redFlash: rgba(255, 60, 60, 0.22);
     }
 
-    /* Premium-ish system stack */
     body {
       margin: 0;
       font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial;
@@ -46,7 +45,7 @@
       transform: translate(-50%, -50%);
     }
 
-    /* ===== Fullscreen flash (subtle) ===== */
+    /* ===== Fullscreen flash ===== */
     #flash {
       position: absolute;
       inset: 0;
@@ -61,18 +60,18 @@
     }
     #flash.flash { animation: flashAnim 240ms ease-out; }
 
-    /* ===== Minimal top HUD ===== */
+    /* ===== Minimal top HUD (safe-area aware) ===== */
     #hud {
       position: absolute;
-      top: 12px;
-      left: 12px;
-      right: 12px;
+      top: calc(12px + env(safe-area-inset-top));
+      left: calc(12px + env(safe-area-inset-left));
+      right: calc(12px + env(safe-area-inset-right));
       z-index: 40;
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
       gap: 12px;
-      pointer-events: none; /* buttons re-enable below */
+      pointer-events: none;
     }
 
     #counters {
@@ -84,7 +83,8 @@
       backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
       box-shadow: 0 12px 30px rgba(0,0,0,0.35);
-      min-width: 130px;
+      min-width: 140px;
+      max-width: 45vw;
     }
 
     #counters .big {
@@ -99,6 +99,8 @@
       color: var(--textDim);
       font-weight: 600;
       letter-spacing: 0.15px;
+      line-height: 1.2;
+      white-space: normal;
     }
 
     #controls {
@@ -106,6 +108,9 @@
       display: flex;
       gap: 10px;
       align-items: center;
+      justify-content: flex-end;
+      flex-wrap: wrap;              /* KEY: allows wrapping so Flip never gets cut off */
+      max-width: 52vw;              /* keeps it from forcing off-screen */
     }
 
     .glassBtn {
@@ -123,15 +128,19 @@
       box-shadow: 0 10px 22px rgba(0,0,0,0.35);
       transition: transform 0.08s ease, background 0.12s ease, border 0.12s ease;
       user-select: none;
+      white-space: nowrap;
     }
     .glassBtn:active { transform: scale(0.99); }
-    .glassBtn.blue {
-      background: linear-gradient(180deg, rgba(30,144,255,0.65), rgba(30,144,255,0.35));
-      border-color: rgba(30,144,255,0.35);
-    }
+
     .glassBtn.red {
       background: linear-gradient(180deg, rgba(255,90,90,0.62), rgba(255,90,90,0.28));
       border-color: rgba(255,90,90,0.35);
+    }
+
+    /* NEW: Flip button color */
+    .glassBtn.flipGreen {
+      background: linear-gradient(180deg, rgba(8,120,98,0.85), rgba(8,120,98,0.45));
+      border-color: rgba(8,120,98,0.45);
     }
 
     /* ===== Big centered feedback badge ===== */
@@ -189,40 +198,17 @@
         rgba(0,0,0,0.88);
     }
 
-    /* Logo like your screenshot */
-    .logo {
+    .logoImgWrap {
       display: flex;
       justify-content: center;
       margin-bottom: 18px;
       user-select: none;
     }
-    .logoWord {
-      display: flex;
-      align-items: center;
-      gap: 0;
-      font-weight: 900;
-      letter-spacing: 10px;
-      font-size: 56px;
-      color: rgba(255,255,255,0.95);
-    }
-    .logoWord .cCircle{
-      width: 44px;
-      height: 44px;
-      border-radius: 999px;
-      border: 4px solid rgba(255,255,255,0.92);
-      display: inline-block;
-      margin: 0 6px 0 -2px; /* tuck into spacing */
-      position: relative;
-    }
-    .logoWord .cCircle:after{
-      content: "";
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      width: 10px;
-      height: 60px;
-      background: rgba(0,0,0,0.88);
-      transform: translate(-50%,-50%); /* creates the “C gap” illusion */
+    .logoImg {
+      width: min(520px, 86vw);
+      height: auto;
+      display: block;
+      filter: drop-shadow(0 18px 40px rgba(0,0,0,0.55));
     }
 
     .startCard {
@@ -293,10 +279,14 @@
       letter-spacing: 0.2px;
     }
 
+    /* Small iPhones: shrink buttons so all fit */
+    @media (max-width: 430px) {
+      #controls { gap: 8px; max-width: 56vw; }
+      .glassBtn { padding: 9px 12px; font-size: 14px; letter-spacing: 0.15px; }
+    }
     @media (max-width: 380px) {
-      .glassBtn { padding: 9px 12px; font-size: 14px; }
-      .logoWord { font-size: 46px; letter-spacing: 8px; }
-      .logoWord .cCircle{ width: 38px; height: 38px; border-width: 4px; }
+      #controls { max-width: 60vw; }
+      .glassBtn { padding: 8px 10px; font-size: 13px; }
       .startTitle { font-size: 38px; }
       .pillBtn { font-size: 20px; padding: 14px 16px; }
     }
@@ -321,7 +311,7 @@
     <div id="controls">
       <button id="targetMissBtn" class="glassBtn red" type="button">Target Miss</button>
       <button id="resetBtn" class="glassBtn" type="button">Reset</button>
-      <button id="flipBtn" class="glassBtn blue" type="button">Flip</button>
+      <button id="flipBtn" class="glassBtn flipGreen" type="button">Flip</button>
     </div>
   </div>
 
@@ -333,12 +323,8 @@
   <!-- Start screen -->
   <div id="startScreen">
     <div style="width:min(620px, 92vw); display:flex; flex-direction:column; gap:18px; align-items:center;">
-      <div class="logo">
-        <div class="logoWord" aria-label="REPCHK">
-          <span>R</span><span>E</span><span>P</span>
-          <span class="cCircle" aria-hidden="true"></span>
-          <span>H</span><span>K</span>
-        </div>
+      <div class="logoImgWrap">
+        <img class="logoImg" src="repchk_logo.png" alt="REPCHK logo" />
       </div>
 
       <div class="startCard">
@@ -388,8 +374,7 @@
   const RESET_LINE_RATIO = 0.55;
   const MIN_TIME_BETWEEN_REPS_MS = 450;
 
-  // Clean look
-  const SHOW_SKELETON = false; // set true if you want the dots/lines back
+  const SHOW_SKELETON = false;
 
   // ==========================
   // Counters
@@ -460,7 +445,6 @@
     showBadge("NO REP", "bad");
     flash("rgba(255,60,60,0.22)");
 
-    // prevent immediate auto-trigger from same throw
     lastRepTime = Date.now();
     resetCycleOnly();
   });
@@ -590,7 +574,7 @@
 
     const lm = results.poseLandmarks;
 
-    // ===== Depth line + hip marker (kept functional but subtle) =====
+    // Depth line + hip marker (subtle)
     const leftHipY  = lm[23].y * canvas.height;
     const rightHipY = lm[24].y * canvas.height;
     const leftKneeY = lm[25].y * canvas.height;
@@ -602,7 +586,6 @@
     const depthGoodNow = hipY > (kneeY + DEPTH_MARGIN_PX);
     if (depthGoodNow) depthReachedThisCycle = true;
 
-    // Knee line
     ctx.save();
     ctx.beginPath();
     ctx.lineWidth = 6;
@@ -611,7 +594,6 @@
     ctx.lineTo(canvas.width, kneeY);
     ctx.stroke();
 
-    // Hip dot
     const hipX = ((lm[23].x + lm[24].x) / 2) * canvas.width;
     ctx.beginPath();
     ctx.fillStyle = depthGoodNow ? "rgba(0,255,140,0.85)" : "rgba(255,255,255,0.18)";
@@ -619,7 +601,7 @@
     ctx.fill();
     ctx.restore();
 
-    // ===== Throw timing (wrists) =====
+    // Throw timing (wrists)
     const leftWristY = lm[15].y * canvas.height;
     const rightWristY = lm[16].y * canvas.height;
     const wristY = Math.min(leftWristY, rightWristY);
@@ -656,7 +638,6 @@
       throwHigh = false;
     }
 
-    // Optional skeleton overlay (off for premium look)
     if (SHOW_SKELETON) {
       drawConnectors(ctx, lm, POSE_CONNECTIONS, { color: "#00FF00", lineWidth: 2 });
       drawLandmarks(ctx, lm, { color: "#FF0000", lineWidth: 1 });
