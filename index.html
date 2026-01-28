@@ -7,20 +7,26 @@
   <style>
     :root{
       --blue: #1e90ff;
-      --red: #ff3b3b;
-      --green: rgba(0, 255, 140, 0.28);
-      --redFlash: rgba(255, 60, 60, 0.28);
+      --red: rgba(255, 90, 90, 0.95);
+      --glass: rgba(255,255,255,0.10);
+      --glass2: rgba(255,255,255,0.06);
       --glassBorder: rgba(255,255,255,0.18);
-      --textDim: rgba(255,255,255,0.85);
-      --overlayBg: rgba(0,0,0,0.35);
+      --textDim: rgba(255,255,255,0.78);
+
+      --greenFlash: rgba(0, 255, 140, 0.25);
+      --redFlash: rgba(255, 60, 60, 0.22);
     }
 
+    /* Premium-ish system stack */
     body {
       margin: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial;
       background: #000;
-      color: white;
+      color: #fff;
       overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: geometricPrecision;
+      letter-spacing: 0.1px;
     }
 
     #videoContainer {
@@ -40,7 +46,7 @@
       transform: translate(-50%, -50%);
     }
 
-    /* ===== Flash overlay ===== */
+    /* ===== Fullscreen flash (subtle) ===== */
     #flash {
       position: absolute;
       inset: 0;
@@ -48,97 +54,128 @@
       pointer-events: none;
       opacity: 0;
     }
-
     @keyframes flashAnim {
-      0%   { opacity: 0; }
-      20%  { opacity: 1; }
+      0% { opacity: 0; }
+      18% { opacity: 1; }
       100% { opacity: 0; }
     }
+    #flash.flash { animation: flashAnim 240ms ease-out; }
 
-    #flash.flash {
-      animation: flashAnim 260ms ease-out;
-    }
-
-    /* ===== Two-row overlay ===== */
-    #overlay {
+    /* ===== Minimal top HUD ===== */
+    #hud {
       position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      z-index: 10;
-      padding: 10px 12px 12px 12px;
-      box-sizing: border-box;
-      background: var(--overlayBg);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-    }
-
-    #overlayTop {
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      z-index: 40;
       display: flex;
-      align-items: center;
       justify-content: space-between;
-      gap: 10px;
+      align-items: flex-start;
+      gap: 12px;
+      pointer-events: none; /* buttons re-enable below */
     }
 
-    #repCount {
-      font-size: 1.2rem;
+    #counters {
+      pointer-events: none;
+      padding: 10px 12px;
+      border-radius: 16px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.06));
+      border: 1px solid rgba(255,255,255,0.16);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      box-shadow: 0 12px 30px rgba(0,0,0,0.35);
+      min-width: 130px;
+    }
+
+    #counters .big {
+      font-size: 22px;
       font-weight: 800;
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      white-space: nowrap;
-      flex: 0 0 auto;
+      letter-spacing: 0.2px;
+      line-height: 1.05;
     }
-
-    #repCount small {
-      font-size: 0.95rem;
-      opacity: 0.85;
+    #counters .small {
+      margin-top: 6px;
+      font-size: 14px;
+      color: var(--textDim);
       font-weight: 600;
+      letter-spacing: 0.15px;
     }
 
     #controls {
+      pointer-events: auto;
       display: flex;
-      gap: 8px;
+      gap: 10px;
       align-items: center;
-      flex: 0 0 auto;
     }
 
-    #feedbackRow {
-      margin-top: 8px;
-    }
-
-    #feedback {
-      font-size: 1.05rem;
-      opacity: 0.95;
-      width: 100%;
-      text-align: left;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .btn {
-      padding: 9px 12px;
-      font-size: 0.9rem;
-      border: none;
-      border-radius: 14px;
+    .glassBtn {
+      padding: 10px 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.18);
+      background: linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.05));
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      color: rgba(255,255,255,0.92);
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
       cursor: pointer;
-      white-space: nowrap;
-      color: #fff;
+      box-shadow: 0 10px 22px rgba(0,0,0,0.35);
+      transition: transform 0.08s ease, background 0.12s ease, border 0.12s ease;
+      user-select: none;
+    }
+    .glassBtn:active { transform: scale(0.99); }
+    .glassBtn.blue {
+      background: linear-gradient(180deg, rgba(30,144,255,0.65), rgba(30,144,255,0.35));
+      border-color: rgba(30,144,255,0.35);
+    }
+    .glassBtn.red {
+      background: linear-gradient(180deg, rgba(255,90,90,0.62), rgba(255,90,90,0.28));
+      border-color: rgba(255,90,90,0.35);
     }
 
-    .btn.primary { background: var(--blue); }
-    .btn.secondary {
-      background: rgba(255,255,255,0.18);
-      border: 1px solid rgba(255,255,255,0.35);
+    /* ===== Big centered feedback badge ===== */
+    #badgeWrap {
+      position: absolute;
+      inset: 0;
+      z-index: 45;
+      display: grid;
+      place-items: center;
+      pointer-events: none;
     }
-    .btn.danger { background: var(--red); }
 
-    /* ===== Start Screen (new.png style) ===== */
+    #badge {
+      opacity: 0;
+      transform: translateY(8px) scale(0.985);
+      padding: 14px 18px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.18);
+      background: rgba(0,0,0,0.35);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.55);
+      font-weight: 900;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      font-size: 22px;
+      color: rgba(255,255,255,0.92);
+    }
+
+    @keyframes badgeInOut {
+      0%   { opacity: 0; transform: translateY(10px) scale(0.98); }
+      12%  { opacity: 1; transform: translateY(0) scale(1.00); }
+      80%  { opacity: 1; transform: translateY(0) scale(1.00); }
+      100% { opacity: 0; transform: translateY(8px) scale(0.99); }
+    }
+    #badge.show { animation: badgeInOut 900ms ease-out; }
+    #badge.good { border-color: rgba(0,255,140,0.35); background: rgba(0,255,140,0.12); }
+    #badge.bad  { border-color: rgba(255,60,60,0.40); background: rgba(255,60,60,0.10); }
+
+    /* ===== Start screen ===== */
     #startScreen {
       position: absolute;
       inset: 0;
-      z-index: 20;
+      z-index: 50;
       display: flex;
       justify-content: center;
       align-items: center;
@@ -146,87 +183,122 @@
       box-sizing: border-box;
 
       background:
-        radial-gradient(85% 70% at 15% 20%, rgba(0, 255, 140, 0.22), transparent 60%),
-        radial-gradient(85% 70% at 85% 30%, rgba(0, 255, 140, 0.18), transparent 62%),
-        radial-gradient(90% 75% at 60% 90%, rgba(0, 255, 140, 0.14), transparent 55%),
-        rgba(0,0,0,0.86);
+        radial-gradient(85% 70% at 15% 20%, rgba(0, 255, 140, 0.18), transparent 60%),
+        radial-gradient(85% 70% at 85% 30%, rgba(0, 255, 140, 0.14), transparent 62%),
+        radial-gradient(90% 75% at 60% 90%, rgba(0, 255, 140, 0.12), transparent 55%),
+        rgba(0,0,0,0.88);
+    }
+
+    /* Logo like your screenshot */
+    .logo {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 18px;
+      user-select: none;
+    }
+    .logoWord {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      font-weight: 900;
+      letter-spacing: 10px;
+      font-size: 56px;
+      color: rgba(255,255,255,0.95);
+    }
+    .logoWord .cCircle{
+      width: 44px;
+      height: 44px;
+      border-radius: 999px;
+      border: 4px solid rgba(255,255,255,0.92);
+      display: inline-block;
+      margin: 0 6px 0 -2px; /* tuck into spacing */
+      position: relative;
+    }
+    .logoWord .cCircle:after{
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 10px;
+      height: 60px;
+      background: rgba(0,0,0,0.88);
+      transform: translate(-50%,-50%); /* creates the “C gap” illusion */
     }
 
     .startCard {
-      width: min(520px, 92vw);
-      border-radius: 26px;
-      padding: 34px 22px;
+      width: min(560px, 92vw);
+      border-radius: 30px;
+      padding: 28px 22px 26px 22px;
       text-align: center;
 
-      background: linear-gradient(
-        180deg,
-        rgba(50,50,50,0.42) 0%,
-        rgba(18,18,18,0.34) 100%
-      );
-      border: 1px solid var(--glassBorder);
-      box-shadow:
-        0 18px 60px rgba(0,0,0,0.55),
-        inset 0 1px 0 rgba(255,255,255,0.10);
+      background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.04));
+      border: 1px solid rgba(255,255,255,0.16);
+      box-shadow: 0 22px 70px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08);
 
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
     }
 
     .startTitle {
-      font-size: 2.1rem;
-      font-weight: 800;
-      margin-bottom: 16px;
+      font-size: 44px;
+      font-weight: 900;
+      margin: 0 0 14px 0;
+      letter-spacing: 0.2px;
     }
 
     .startTip {
-      margin: 0 auto 28px auto;
-      max-width: 420px;
-      font-size: 1.05rem;
+      margin: 0 auto 18px auto;
+      max-width: 440px;
+      font-size: 18px;
       line-height: 1.45;
-      color: rgba(255,255,255,0.85);
+      color: rgba(255,255,255,0.82);
+      font-weight: 600;
     }
-
     .startTip strong {
-      font-weight: 800;
+      font-weight: 900;
       color: rgba(255,255,255,0.95);
     }
 
     .pillStack {
       display: flex;
       flex-direction: column;
-      gap: 14px;
+      gap: 16px;
       align-items: center;
+      margin-top: 14px;
     }
 
     .pillBtn {
-      width: min(360px, 78vw);
-      padding: 14px 18px;
+      width: min(420px, 82vw);
+      padding: 16px 18px;
       border-radius: 999px;
-      font-size: 1.15rem;
-      font-weight: 700;
-      color: #fff;
-      background: rgba(0,0,0,0.18);
-      border: 2px solid rgba(255,255,255,0.90);
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: 0.2px;
+      color: rgba(255,255,255,0.95);
+
+      background: rgba(0,0,0,0.22);
+      border: 2px solid rgba(255,255,255,0.85);
       cursor: pointer;
-      outline: none;
-      transition: transform 0.08s ease, background 0.12s ease;
-    }
 
-    .pillBtn:active {
-      transform: scale(0.99);
-      background: rgba(255,255,255,0.06);
+      box-shadow: 0 14px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.10);
+      transition: transform 0.08s ease, background 0.12s ease, border 0.12s ease;
     }
+    .pillBtn:active { transform: scale(0.99); background: rgba(255,255,255,0.06); }
 
-    .hintLine {
-      margin-top: 16px;
-      font-size: 0.95rem;
-      color: rgba(255,255,255,0.65);
+    .comingSoon {
+      margin-top: 14px;
+      font-size: 18px;
+      color: rgba(255,255,255,0.55);
+      font-weight: 700;
+      letter-spacing: 0.2px;
     }
 
     @media (max-width: 380px) {
-      .btn { padding: 8px 10px; font-size: 0.85rem; border-radius: 12px; }
-      #repCount { font-size: 1.05rem; }
-      #feedback { font-size: 0.98rem; }
+      .glassBtn { padding: 9px 12px; font-size: 14px; }
+      .logoWord { font-size: 46px; letter-spacing: 8px; }
+      .logoWord .cCircle{ width: 38px; height: 38px; border-width: 4px; }
+      .startTitle { font-size: 38px; }
+      .pillBtn { font-size: 20px; padding: 14px 16px; }
     }
   </style>
 </head>
@@ -236,44 +308,58 @@
   <video id="video" autoplay playsinline muted></video>
   <canvas id="canvas"></canvas>
 
-  <!-- Flash overlay -->
   <div id="flash"></div>
 
-  <div id="overlay">
-    <div id="overlayTop">
-      <div id="repCount">
-        <span id="repsText">Reps: 0</span>
-        <small id="noRepsText">No Reps: 0</small>
-      </div>
-
-      <div id="controls">
-        <button id="targetMissBtn" class="btn danger" type="button">Target Miss</button>
-        <button id="resetBtn" class="btn secondary" type="button">Reset</button>
-        <button id="flipBtn" class="btn primary" type="button">Flip</button>
-      </div>
+  <!-- Minimal HUD -->
+  <div id="hud">
+    <div id="counters">
+      <div class="big" id="repsText">Reps: 0</div>
+      <div class="small" id="noRepsText">No Reps: 0</div>
+      <div class="small" id="tinyStatus" style="margin-top:8px; opacity:0.7;">Ready</div>
     </div>
 
-    <div id="feedbackRow">
-      <div id="feedback">Ready</div>
+    <div id="controls">
+      <button id="targetMissBtn" class="glassBtn red" type="button">Target Miss</button>
+      <button id="resetBtn" class="glassBtn" type="button">Reset</button>
+      <button id="flipBtn" class="glassBtn blue" type="button">Flip</button>
     </div>
   </div>
 
+  <!-- Center badge -->
+  <div id="badgeWrap">
+    <div id="badge">READY</div>
+  </div>
+
+  <!-- Start screen -->
   <div id="startScreen">
-    <div class="startCard">
-      <div class="startTitle">Select Division</div>
-      <p class="startTip">
-        Tip: place your phone so your full body is visible.
-        <br><strong>Rear camera gives best tracking.</strong>
-      </p>
-      <div class="pillStack">
-        <button class="pillBtn" onclick="startApp('women')">Women</button>
-        <button class="pillBtn" onclick="startApp('men')">Men</button>
+    <div style="width:min(620px, 92vw); display:flex; flex-direction:column; gap:18px; align-items:center;">
+      <div class="logo">
+        <div class="logoWord" aria-label="REPCHK">
+          <span>R</span><span>E</span><span>P</span>
+          <span class="cCircle" aria-hidden="true"></span>
+          <span>H</span><span>K</span>
+        </div>
       </div>
-      <div class="hintLine">Coming soon</div>
+
+      <div class="startCard">
+        <h1 class="startTitle">Select Division</h1>
+        <p class="startTip">
+          Tip: place your phone so your full body is visible.
+          <br><strong>Rear camera gives best tracking.</strong>
+        </p>
+
+        <div class="pillStack">
+          <button class="pillBtn" onclick="startApp('women')">Women</button>
+          <button class="pillBtn" onclick="startApp('men')">Men</button>
+        </div>
+
+        <div class="comingSoon">Coming soon</div>
+      </div>
     </div>
   </div>
 </div>
 
+<!-- MediaPipe -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
 
@@ -284,21 +370,30 @@
 
   const repsText = document.getElementById("repsText");
   const noRepsText = document.getElementById("noRepsText");
-  const feedbackEl = document.getElementById("feedback");
-  const startScreen = document.getElementById("startScreen");
+  const tinyStatus = document.getElementById("tinyStatus");
 
+  const startScreen = document.getElementById("startScreen");
   const flipBtn = document.getElementById("flipBtn");
   const resetBtn = document.getElementById("resetBtn");
   const targetMissBtn = document.getElementById("targetMissBtn");
-  const flashEl = document.getElementById("flash");
 
-  // Tuning
+  const flashEl = document.getElementById("flash");
+  const badgeEl = document.getElementById("badge");
+
+  // ==========================
+  // TUNING
+  // ==========================
   const DEPTH_MARGIN_PX = 18;
   const THROW_LINE_RATIO = 0.35;
   const RESET_LINE_RATIO = 0.55;
   const MIN_TIME_BETWEEN_REPS_MS = 450;
 
+  // Clean look
+  const SHOW_SKELETON = false; // set true if you want the dots/lines back
+
+  // ==========================
   // Counters
+  // ==========================
   let reps = 0;     // GOOD reps only
   let noReps = 0;
 
@@ -311,6 +406,7 @@
   let currentFacing = "environment";
   let currentStream = null;
   let pose = null;
+
   let rafId = null;
   let isProcessing = false;
   let started = false;
@@ -323,12 +419,22 @@
   function flash(color) {
     flashEl.classList.remove("flash");
     flashEl.style.background = color;
-    void flashEl.offsetWidth; // reflow
+    void flashEl.offsetWidth;
     flashEl.classList.add("flash");
   }
 
-  function flashGreen() { flash(getComputedStyle(document.documentElement).getPropertyValue('--green') || 'rgba(0,255,140,0.28)'); }
-  function flashRed()   { flash(getComputedStyle(document.documentElement).getPropertyValue('--redFlash') || 'rgba(255,60,60,0.28)'); }
+  function showBadge(text, type) {
+    badgeEl.classList.remove("show", "good", "bad");
+    badgeEl.textContent = text;
+    if (type === "good") badgeEl.classList.add("good");
+    if (type === "bad") badgeEl.classList.add("bad");
+    void badgeEl.offsetWidth;
+    badgeEl.classList.add("show");
+  }
+
+  function setStatus(text) {
+    tinyStatus.textContent = text;
+  }
 
   function resetCycleOnly() {
     depthReachedThisCycle = false;
@@ -340,20 +446,21 @@
     noReps = 0;
     lastRepTime = 0;
     resetCycleOnly();
-    feedbackEl.textContent = "Reset ✅";
     updateCounters();
+    setStatus("Reset ✅");
+    showBadge("RESET", "");
   }
 
   resetBtn.addEventListener("click", hardResetCounts);
 
   targetMissBtn.addEventListener("click", () => {
-    // Manual no-rep — does NOT count as a rep
     noReps += 1;
-    feedbackEl.textContent = "NO REP ❌ (target miss)";
     updateCounters();
-    flashRed();
+    setStatus("NO REP ❌ (target miss)");
+    showBadge("NO REP", "bad");
+    flash("rgba(255,60,60,0.22)");
 
-    // Prevent immediate auto-trigger from same throw motion
+    // prevent immediate auto-trigger from same throw
     lastRepTime = Date.now();
     resetCycleOnly();
   });
@@ -362,6 +469,7 @@
     startScreen.style.display = "none";
     started = true;
     updateCounters();
+    setStatus("Ready");
     initPoseOnce();
     startWithFacing("environment");
   }
@@ -400,7 +508,7 @@
     stopLoop();
     stopStream();
 
-    feedbackEl.textContent = "Switching...";
+    setStatus("Switching...");
 
     const tryConstraints = [
       { video: { facingMode: { exact: facing }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false },
@@ -421,10 +529,10 @@
 
     if (!stream) {
       if (facing === "environment") {
-        feedbackEl.textContent = "Rear blocked — using front";
+        setStatus("Rear blocked — using front");
         return startWithFacing("user");
       }
-      feedbackEl.textContent = "Camera error";
+      setStatus("Camera error");
       console.error(lastErr);
       return;
     }
@@ -435,7 +543,7 @@
     try { await video.play(); } catch (_) {}
 
     currentFacing = facing;
-    feedbackEl.textContent = `Camera: ${currentFacing === "environment" ? "Rear" : "Front"}`;
+    setStatus(`Camera: ${currentFacing === "environment" ? "Rear" : "Front"}`);
 
     resetCycleOnly();
     runLoop();
@@ -476,13 +584,13 @@
     ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
 
     if (!results.poseLandmarks) {
-      feedbackEl.textContent = "No person detected";
+      setStatus("No person detected");
       return;
     }
 
     const lm = results.poseLandmarks;
 
-    // Depth
+    // ===== Depth line + hip marker (kept functional but subtle) =====
     const leftHipY  = lm[23].y * canvas.height;
     const rightHipY = lm[24].y * canvas.height;
     const leftKneeY = lm[25].y * canvas.height;
@@ -498,7 +606,7 @@
     ctx.save();
     ctx.beginPath();
     ctx.lineWidth = 6;
-    ctx.strokeStyle = depthReachedThisCycle ? "rgba(0,255,140,0.95)" : "rgba(255,255,255,0.55)";
+    ctx.strokeStyle = depthReachedThisCycle ? "rgba(0,255,140,0.85)" : "rgba(255,255,255,0.25)";
     ctx.moveTo(0, kneeY);
     ctx.lineTo(canvas.width, kneeY);
     ctx.stroke();
@@ -506,17 +614,12 @@
     // Hip dot
     const hipX = ((lm[23].x + lm[24].x) / 2) * canvas.width;
     ctx.beginPath();
-    ctx.fillStyle = depthGoodNow ? "rgba(0,255,140,0.95)" : "rgba(255,80,80,0.95)";
-    ctx.arc(hipX, hipY, 10, 0, Math.PI * 2);
+    ctx.fillStyle = depthGoodNow ? "rgba(0,255,140,0.85)" : "rgba(255,255,255,0.18)";
+    ctx.arc(hipX, hipY, 9, 0, Math.PI * 2);
     ctx.fill();
-
-    // Depth label
-    ctx.font = "bold 28px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-    ctx.fillStyle = depthGoodNow ? "rgba(0,255,140,0.95)" : "rgba(255,255,255,0.8)";
-    ctx.fillText(depthGoodNow ? "DEPTH ✅" : "DEPTH ⛔", 18, 44);
     ctx.restore();
 
-    // Throw timing (wrists)
+    // ===== Throw timing (wrists) =====
     const leftWristY = lm[15].y * canvas.height;
     const rightWristY = lm[16].y * canvas.height;
     const wristY = Math.min(leftWristY, rightWristY);
@@ -531,19 +634,21 @@
 
         if (depthReachedThisCycle) {
           reps += 1;
-          feedbackEl.textContent = "GOOD REP ✅";
-          flashGreen();
+          updateCounters();
+          setStatus("GOOD REP ✅");
+          showBadge("GOOD REP", "good");
+          flash("rgba(0,255,140,0.25)");
         } else {
           noReps += 1;
-          feedbackEl.textContent = "NO REP ❌ (depth not reached)";
-          flashRed();
+          updateCounters();
+          setStatus("NO REP ❌ (depth)");
+          showBadge("NO REP", "bad");
+          flash("rgba(255,60,60,0.22)");
         }
-
-        updateCounters();
 
         throwHigh = true;
         lastRepTime = now;
-        depthReachedThisCycle = false; // next rep window
+        depthReachedThisCycle = false;
       }
     }
 
@@ -551,11 +656,12 @@
       throwHigh = false;
     }
 
-    // Skeleton overlay
-    drawConnectors(ctx, lm, POSE_CONNECTIONS, { color: "#00FF00", lineWidth: 2 });
-    drawLandmarks(ctx, lm, { color: "#FF0000", lineWidth: 1 });
+    // Optional skeleton overlay (off for premium look)
+    if (SHOW_SKELETON) {
+      drawConnectors(ctx, lm, POSE_CONNECTIONS, { color: "#00FF00", lineWidth: 2 });
+      drawLandmarks(ctx, lm, { color: "#FF0000", lineWidth: 1 });
+    }
   }
 </script>
 </body>
 </html>
-
