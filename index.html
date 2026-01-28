@@ -338,7 +338,13 @@
     }
   </style>
 </head>
-
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("./sw.js").catch(() => {});
+    });
+  }
+</script>
 <body>
 <div id="videoContainer">
   <video id="video" autoplay playsinline muted></video>
@@ -690,5 +696,6 @@
 </script>
 </body>
 </html>
+
 
 
