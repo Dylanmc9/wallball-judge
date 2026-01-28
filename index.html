@@ -8,8 +8,6 @@
     :root{
       --flipGreen: #087862;
       --red: rgba(255, 90, 90, 0.95);
-      --glass: rgba(255,255,255,0.10);
-      --glass2: rgba(255,255,255,0.06);
       --glassBorder: rgba(255,255,255,0.18);
       --textDim: rgba(255,255,255,0.78);
 
@@ -109,8 +107,8 @@
       gap: 10px;
       align-items: center;
       justify-content: flex-end;
-      flex-wrap: wrap;              /* KEY: allows wrapping so Flip never gets cut off */
-      max-width: 52vw;              /* keeps it from forcing off-screen */
+      flex-wrap: wrap;
+      max-width: 60vw; /* a bit more room now we have 4 buttons */
     }
 
     .glassBtn {
@@ -126,7 +124,7 @@
       letter-spacing: 0.2px;
       cursor: pointer;
       box-shadow: 0 10px 22px rgba(0,0,0,0.35);
-      transition: transform 0.08s ease, background 0.12s ease, border 0.12s ease;
+      transition: transform 0.08s ease, background 0.12s ease, border 0.12s ease, opacity 0.12s ease;
       user-select: none;
       white-space: nowrap;
     }
@@ -137,10 +135,14 @@
       border-color: rgba(255,90,90,0.35);
     }
 
-    /* NEW: Flip button color */
-    .glassBtn.flipGreen {
+    .glassBtn.green {
       background: linear-gradient(180deg, rgba(8,120,98,0.85), rgba(8,120,98,0.45));
       border-color: rgba(8,120,98,0.45);
+    }
+    .glassBtn.green.off {
+      opacity: 0.62;
+      border-color: rgba(255,255,255,0.18);
+      background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.05));
     }
 
     /* ===== Big centered feedback badge ===== */
@@ -188,7 +190,13 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      padding: 18px;
+
+      /* MORE SPACE: safe-area + larger padding so card never hits edges */
+      padding:
+        calc(28px + env(safe-area-inset-top))
+        calc(28px + env(safe-area-inset-right))
+        calc(28px + env(safe-area-inset-bottom))
+        calc(28px + env(safe-area-inset-left));
       box-sizing: border-box;
 
       background:
@@ -281,14 +289,16 @@
 
     /* Small iPhones: shrink buttons so all fit */
     @media (max-width: 430px) {
-      #controls { gap: 8px; max-width: 56vw; }
+      #controls { gap: 8px; max-width: 66vw; }
       .glassBtn { padding: 9px 12px; font-size: 14px; letter-spacing: 0.15px; }
+      #counters { max-width: 52vw; }
     }
     @media (max-width: 380px) {
-      #controls { max-width: 60vw; }
+      #controls { max-width: 70vw; }
       .glassBtn { padding: 8px 10px; font-size: 13px; }
       .startTitle { font-size: 38px; }
       .pillBtn { font-size: 20px; padding: 14px 16px; }
+      #startScreen { padding: calc(22px + env(safe-area-inset-top)) calc(22px + env(safe-area-inset-right)) calc(22px + env(safe-area-inset-bottom)) calc(22px + env(safe-area-inset-left)); }
     }
   </style>
 </head>
@@ -309,9 +319,10 @@
     </div>
 
     <div id="controls">
+      <button id="guidesBtn" class="glassBtn green" type="button">Guides</button>
       <button id="targetMissBtn" class="glassBtn red" type="button">Target Miss</button>
       <button id="resetBtn" class="glassBtn" type="button">Reset</button>
-      <button id="flipBtn" class="glassBtn flipGreen" type="button">Flip</button>
+      <button id="flipBtn" class="glassBtn green" type="button">Flip</button>
     </div>
   </div>
 
@@ -322,7 +333,7 @@
 
   <!-- Start screen -->
   <div id="startScreen">
-    <div style="width:min(620px, 92vw); display:flex; flex-direction:column; gap:18px; align-items:center;">
+    <div style="width:min(620px, 100%); display:flex; flex-direction:column; gap:18px; align-items:center;">
       <div class="logoImgWrap">
         <img class="logoImg" src="repchk_logo.png" alt="REPCHK logo" />
       </div>
@@ -362,6 +373,7 @@
   const flipBtn = document.getElementById("flipBtn");
   const resetBtn = document.getElementById("resetBtn");
   const targetMissBtn = document.getElementById("targetMissBtn");
+  const guidesBtn = document.getElementById("guidesBtn");
 
   const flashEl = document.getElementById("flash");
   const badgeEl = document.getElementById("badge");
@@ -374,7 +386,25 @@
   const RESET_LINE_RATIO = 0.55;
   const MIN_TIME_BETWEEN_REPS_MS = 450;
 
-  const SHOW_SKELETON = false;
+  // Guides (calibration overlays)
+  let guidesOn = true; // default ON so user sees calibration lines
+
+  function syncGuidesUI() {
+    if (guidesOn) {
+      guidesBtn.classList.remove("off");
+      guidesBtn.textContent = "Guides";
+    } else {
+      guidesBtn.classList.add("off");
+      guidesBtn.textContent = "Guides";
+    }
+  }
+
+  guidesBtn.addEventListener("click", () => {
+    guidesOn = !guidesOn;
+    syncGuidesUI();
+  });
+
+  syncGuidesUI();
 
   // ==========================
   // Counters
@@ -574,7 +604,7 @@
 
     const lm = results.poseLandmarks;
 
-    // Depth line + hip marker (subtle)
+    // Depth line + hip marker (draw only if guidesOn)
     const leftHipY  = lm[23].y * canvas.height;
     const rightHipY = lm[24].y * canvas.height;
     const leftKneeY = lm[25].y * canvas.height;
@@ -586,20 +616,22 @@
     const depthGoodNow = hipY > (kneeY + DEPTH_MARGIN_PX);
     if (depthGoodNow) depthReachedThisCycle = true;
 
-    ctx.save();
-    ctx.beginPath();
-    ctx.lineWidth = 6;
-    ctx.strokeStyle = depthReachedThisCycle ? "rgba(0,255,140,0.85)" : "rgba(255,255,255,0.25)";
-    ctx.moveTo(0, kneeY);
-    ctx.lineTo(canvas.width, kneeY);
-    ctx.stroke();
+    if (guidesOn) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.lineWidth = 8;
+      ctx.strokeStyle = depthReachedThisCycle ? "rgba(0,255,140,0.95)" : "rgba(255,255,255,0.55)";
+      ctx.moveTo(0, kneeY);
+      ctx.lineTo(canvas.width, kneeY);
+      ctx.stroke();
 
-    const hipX = ((lm[23].x + lm[24].x) / 2) * canvas.width;
-    ctx.beginPath();
-    ctx.fillStyle = depthGoodNow ? "rgba(0,255,140,0.85)" : "rgba(255,255,255,0.18)";
-    ctx.arc(hipX, hipY, 9, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
+      const hipX = ((lm[23].x + lm[24].x) / 2) * canvas.width;
+      ctx.beginPath();
+      ctx.fillStyle = depthGoodNow ? "rgba(0,255,140,0.95)" : "rgba(255,255,255,0.55)";
+      ctx.arc(hipX, hipY, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
 
     // Throw timing (wrists)
     const leftWristY = lm[15].y * canvas.height;
@@ -638,7 +670,8 @@
       throwHigh = false;
     }
 
-    if (SHOW_SKELETON) {
+    // Skeleton overlay only when guidesOn (calibration)
+    if (guidesOn) {
       drawConnectors(ctx, lm, POSE_CONNECTIONS, { color: "#00FF00", lineWidth: 2 });
       drawLandmarks(ctx, lm, { color: "#FF0000", lineWidth: 1 });
     }
