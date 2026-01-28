@@ -224,11 +224,12 @@
       width: 100%;
     }
     .logoImg {
-      width: min(520px, 86vw);
-      height: auto;
-      display: block;
-      filter: drop-shadow(0 18px 40px rgba(0,0,0,0.55));
-    }
+  width: min(380px, calc(100vw - 120px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+  height: auto;
+  display: block;
+  filter: drop-shadow(0 18px 40px rgba(0,0,0,0.55));
+}
+
 
     /* IMPORTANT: hard cap based on viewport minus guaranteed margins */
     .startCard {
@@ -681,3 +682,4 @@
 </script>
 </body>
 </html>
+
