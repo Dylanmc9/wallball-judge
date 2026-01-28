@@ -108,7 +108,7 @@
       align-items: center;
       justify-content: flex-end;
       flex-wrap: wrap;
-      max-width: 60vw; /* a bit more room now we have 4 buttons */
+      max-width: 60vw;
     }
 
     .glassBtn {
@@ -191,12 +191,12 @@
       justify-content: center;
       align-items: center;
 
-      /* MORE SPACE: safe-area + larger padding so card never hits edges */
+      /* strong outer padding */
       padding:
-        calc(28px + env(safe-area-inset-top))
-        calc(28px + env(safe-area-inset-right))
-        calc(28px + env(safe-area-inset-bottom))
-        calc(28px + env(safe-area-inset-left));
+        calc(34px + env(safe-area-inset-top))
+        calc(34px + env(safe-area-inset-right))
+        calc(34px + env(safe-area-inset-bottom))
+        calc(34px + env(safe-area-inset-left));
       box-sizing: border-box;
 
       background:
@@ -206,11 +206,22 @@
         rgba(0,0,0,0.88);
     }
 
+    /* full-width wrapper so card can be constrained precisely */
+    .startWrap {
+      width: 100%;
+      max-width: 640px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      align-items: center;
+    }
+
     .logoImgWrap {
       display: flex;
       justify-content: center;
-      margin-bottom: 18px;
+      margin-bottom: 4px;
       user-select: none;
+      width: 100%;
     }
     .logoImg {
       width: min(520px, 86vw);
@@ -219,8 +230,9 @@
       filter: drop-shadow(0 18px 40px rgba(0,0,0,0.55));
     }
 
+    /* IMPORTANT: hard cap based on viewport minus guaranteed margins */
     .startCard {
-      width: min(560px, 92vw);
+      width: min(560px, calc(100vw - 72px - env(safe-area-inset-left) - env(safe-area-inset-right)));
       border-radius: 30px;
       padding: 28px 22px 26px 22px;
       text-align: center;
@@ -262,7 +274,8 @@
     }
 
     .pillBtn {
-      width: min(420px, 82vw);
+      width: 100%;
+      max-width: 420px;
       padding: 16px 18px;
       border-radius: 999px;
       font-size: 22px;
@@ -287,18 +300,32 @@
       letter-spacing: 0.2px;
     }
 
-    /* Small iPhones: shrink buttons so all fit */
     @media (max-width: 430px) {
       #controls { gap: 8px; max-width: 66vw; }
       .glassBtn { padding: 9px 12px; font-size: 14px; letter-spacing: 0.15px; }
       #counters { max-width: 52vw; }
+
+      /* even more guaranteed space on small screens */
+      .startCard {
+        width: calc(100vw - 84px - env(safe-area-inset-left) - env(safe-area-inset-right));
+      }
     }
     @media (max-width: 380px) {
       #controls { max-width: 70vw; }
       .glassBtn { padding: 8px 10px; font-size: 13px; }
       .startTitle { font-size: 38px; }
       .pillBtn { font-size: 20px; padding: 14px 16px; }
-      #startScreen { padding: calc(22px + env(safe-area-inset-top)) calc(22px + env(safe-area-inset-right)) calc(22px + env(safe-area-inset-bottom)) calc(22px + env(safe-area-inset-left)); }
+
+      #startScreen {
+        padding:
+          calc(30px + env(safe-area-inset-top))
+          calc(30px + env(safe-area-inset-right))
+          calc(30px + env(safe-area-inset-bottom))
+          calc(30px + env(safe-area-inset-left));
+      }
+      .startCard {
+        width: calc(100vw - 92px - env(safe-area-inset-left) - env(safe-area-inset-right));
+      }
     }
   </style>
 </head>
@@ -310,7 +337,6 @@
 
   <div id="flash"></div>
 
-  <!-- Minimal HUD -->
   <div id="hud">
     <div id="counters">
       <div class="big" id="repsText">Reps: 0</div>
@@ -326,14 +352,12 @@
     </div>
   </div>
 
-  <!-- Center badge -->
   <div id="badgeWrap">
     <div id="badge">READY</div>
   </div>
 
-  <!-- Start screen -->
   <div id="startScreen">
-    <div style="width:min(620px, 100%); display:flex; flex-direction:column; gap:18px; align-items:center;">
+    <div class="startWrap">
       <div class="logoImgWrap">
         <img class="logoImg" src="repchk_logo.png" alt="REPCHK logo" />
       </div>
@@ -356,7 +380,6 @@
   </div>
 </div>
 
-<!-- MediaPipe -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
 
@@ -378,46 +401,29 @@
   const flashEl = document.getElementById("flash");
   const badgeEl = document.getElementById("badge");
 
-  // ==========================
-  // TUNING
-  // ==========================
   const DEPTH_MARGIN_PX = 18;
   const THROW_LINE_RATIO = 0.35;
   const RESET_LINE_RATIO = 0.55;
   const MIN_TIME_BETWEEN_REPS_MS = 450;
 
-  // Guides (calibration overlays)
-  let guidesOn = true; // default ON so user sees calibration lines
+  let guidesOn = true;
 
   function syncGuidesUI() {
-    if (guidesOn) {
-      guidesBtn.classList.remove("off");
-      guidesBtn.textContent = "Guides";
-    } else {
-      guidesBtn.classList.add("off");
-      guidesBtn.textContent = "Guides";
-    }
+    guidesBtn.classList.toggle("off", !guidesOn);
   }
-
   guidesBtn.addEventListener("click", () => {
     guidesOn = !guidesOn;
     syncGuidesUI();
   });
-
   syncGuidesUI();
 
-  // ==========================
-  // Counters
-  // ==========================
-  let reps = 0;     // GOOD reps only
+  let reps = 0;
   let noReps = 0;
 
-  // Rep-cycle state
   let depthReachedThisCycle = false;
   let throwHigh = false;
   let lastRepTime = 0;
 
-  // Camera/pose
   let currentFacing = "environment";
   let currentStream = null;
   let pose = null;
@@ -521,7 +527,6 @@
   async function startWithFacing(facing) {
     stopLoop();
     stopStream();
-
     setStatus("Switching...");
 
     const tryConstraints = [
@@ -604,7 +609,6 @@
 
     const lm = results.poseLandmarks;
 
-    // Depth line + hip marker (draw only if guidesOn)
     const leftHipY  = lm[23].y * canvas.height;
     const rightHipY = lm[24].y * canvas.height;
     const leftKneeY = lm[25].y * canvas.height;
@@ -633,7 +637,6 @@
       ctx.restore();
     }
 
-    // Throw timing (wrists)
     const leftWristY = lm[15].y * canvas.height;
     const rightWristY = lm[16].y * canvas.height;
     const wristY = Math.min(leftWristY, rightWristY);
@@ -670,7 +673,6 @@
       throwHigh = false;
     }
 
-    // Skeleton overlay only when guidesOn (calibration)
     if (guidesOn) {
       drawConnectors(ctx, lm, POSE_CONNECTIONS, { color: "#00FF00", lineWidth: 2 });
       drawLandmarks(ctx, lm, { color: "#FF0000", lineWidth: 1 });
