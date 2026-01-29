@@ -4,174 +4,375 @@
   <meta charset="UTF-8" />
   <title>REPCHK</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-  <!-- PWA basics -->
-  <link rel="manifest" href="./manifest.webmanifest">
-  <meta name="theme-color" content="#000000">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="REPCHK">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="apple-touch-icon" href="./apple-touch-icon.png">
-
+  <script defer src="https://cloud.umami.is/script.js" data-website-id="345b6e83-a4c1-4f02-9165-5f7c0738ad63"></script>
   <style>
     :root{
-      --green:#087862;
-      --red:rgba(255,90,90,.95);
-      --textDim:rgba(255,255,255,.78);
+      --green: #087862;
+      --red: rgba(255, 90, 90, 0.95);
+      --glassBorder: rgba(255,255,255,0.18);
+      --textDim: rgba(255,255,255,0.78);
+
+      --greenFlash: rgba(0, 255, 140, 0.25);
+      --redFlash: rgba(255, 60, 60, 0.22);
     }
 
-    body{
-      margin:0;
-      background:#000;
-      color:#fff;
-      font-family:system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial;
-      overflow:hidden;
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial;
+      background: #000;
+      color: #fff;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: geometricPrecision;
+      letter-spacing: 0.1px;
     }
 
-    #videoContainer{position:fixed;inset:0;overflow:hidden}
-    video,canvas{
-      position:absolute;
-      inset:0;
-      width:100vw;
-      height:100vh;
-      object-fit:cover;
+    #videoContainer {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      background: #000;
     }
 
-    /* HUD */
-    #hud{
-      position:absolute;
-      top:calc(12px + env(safe-area-inset-top));
-      left:calc(12px + env(safe-area-inset-left));
-      right:calc(12px + env(safe-area-inset-right));
-      display:flex;
-      justify-content:space-between;
-      pointer-events:none;
-      z-index:20;
+    video, canvas {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+      transform: translate(-50%, -50%);
     }
 
-    #counters{
-      padding:10px 12px;
-      border-radius:16px;
-      background:rgba(255,255,255,.08);
-      backdrop-filter:blur(10px);
-      font-weight:700;
+    /* ===== Fullscreen flash ===== */
+    #flash {
+      position: absolute;
+      inset: 0;
+      z-index: 30;
+      pointer-events: none;
+      opacity: 0;
+    }
+    @keyframes flashAnim {
+      0% { opacity: 0; }
+      18% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+    #flash.flash { animation: flashAnim 240ms ease-out; }
+
+    /* ===== Minimal top HUD (safe-area aware) ===== */
+    #hud {
+      position: absolute;
+      top: calc(12px + env(safe-area-inset-top));
+      left: calc(12px + env(safe-area-inset-left));
+      right: calc(12px + env(safe-area-inset-right));
+      z-index: 40;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      pointer-events: none;
     }
 
-    #controls{
-      pointer-events:auto;
-      display:flex;
-      gap:8px;
-      flex-wrap:wrap;
-      justify-content:flex-end;
-      max-width:70vw;
+    #counters {
+      pointer-events: none;
+      padding: 10px 12px;
+      border-radius: 16px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.06));
+      border: 1px solid rgba(255,255,255,0.16);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      box-shadow: 0 12px 30px rgba(0,0,0,0.35);
+      min-width: 140px;
+      max-width: 48vw;
     }
 
-    .glassBtn{
-      padding:10px 14px;
-      border-radius:999px;
-      border:1px solid rgba(255,255,255,.18);
-      background:rgba(255,255,255,.08);
-      color:#fff;
-      font-weight:700;
-      cursor:pointer;
+    #counters .big {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: 0.2px;
+      line-height: 1.05;
+    }
+    #counters .small {
+      margin-top: 6px;
+      font-size: 14px;
+      color: var(--textDim);
+      font-weight: 600;
+      letter-spacing: 0.15px;
+      line-height: 1.2;
+      white-space: normal;
     }
 
-    .glassBtn.green{background:rgba(8,120,98,.85)}
-    .glassBtn.red{background:rgba(255,90,90,.75)}
-    .glassBtn.off{opacity:.6}
-
-    /* Badge */
-    #badgeWrap{
-      position:absolute;
-      inset:0;
-      display:grid;
-      place-items:center;
-      pointer-events:none;
-      z-index:15;
-    }
-    #badge{
-      padding:14px 20px;
-      border-radius:999px;
-      background:rgba(0,0,0,.45);
-      font-weight:900;
-      opacity:0;
-    }
-    #badge.show{opacity:1}
-
-    /* Start screen */
-    #startScreen{
-      position:absolute;
-      inset:0;
-      z-index:30;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      padding:calc(34px + env(safe-area-inset-top));
-      background:rgba(0,0,0,.88);
+    #controls {
+      pointer-events: auto;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: flex-end;
+      flex-wrap: wrap;       /* wraps so nothing gets cut off */
+      max-width: 66vw;
     }
 
-    .startWrap{
-      width:100%;
-      max-width:640px;
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      gap:18px;
+    .glassBtn {
+      padding: 10px 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.18);
+      background: linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.05));
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      color: rgba(255,255,255,0.92);
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+      cursor: pointer;
+      box-shadow: 0 10px 22px rgba(0,0,0,0.35);
+      transition: transform 0.08s ease, background 0.12s ease, border 0.12s ease, opacity 0.12s ease;
+      user-select: none;
+      white-space: nowrap;
+    }
+    .glassBtn:active { transform: scale(0.99); }
+
+    .glassBtn.red {
+      background: linear-gradient(180deg, rgba(255,90,90,0.62), rgba(255,90,90,0.28));
+      border-color: rgba(255,90,90,0.35);
     }
 
-    .logoImg{
-      width:min(360px, calc(100vw - 140px));
-      filter:drop-shadow(0 16px 40px rgba(0,0,0,.6));
+    .glassBtn.green {
+      background: linear-gradient(180deg, rgba(8,120,98,0.85), rgba(8,120,98,0.45));
+      border-color: rgba(8,120,98,0.45);
+    }
+    .glassBtn.green.off {
+      opacity: 0.62;
+      border-color: rgba(255,255,255,0.18);
+      background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.05));
     }
 
-    .startCard{
-      width:min(560px, calc(100vw - 80px));
-      border-radius:28px;
-      padding:26px 22px;
-      background:rgba(255,255,255,.08);
-      backdrop-filter:blur(14px);
-      text-align:center;
+    /* ===== Big centered feedback badge ===== */
+    #badgeWrap {
+      position: absolute;
+      inset: 0;
+      z-index: 45;
+      display: grid;
+      place-items: center;
+      pointer-events: none;
     }
 
-    .pillBtn{
-      width:100%;
-      max-width:420px;
-      padding:16px;
-      margin-top:12px;
-      border-radius:999px;
-      font-size:20px;
-      font-weight:800;
-      border:2px solid #fff;
-      background:transparent;
-      color:#fff;
-      cursor:pointer;
+    #badge {
+      opacity: 0;
+      transform: translateY(8px) scale(0.985);
+      padding: 14px 18px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.18);
+      background: rgba(0,0,0,0.35);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.55);
+      font-weight: 900;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      font-size: 22px;
+      color: rgba(255,255,255,0.92);
     }
 
-    .comingSoon{
-      margin-top:14px;
-      font-size:17px;
-      color:rgba(255,255,255,.6);
+    @keyframes badgeInOut {
+      0%   { opacity: 0; transform: translateY(10px) scale(0.98); }
+      12%  { opacity: 1; transform: translateY(0) scale(1.00); }
+      80%  { opacity: 1; transform: translateY(0) scale(1.00); }
+      100% { opacity: 0; transform: translateY(8px) scale(0.99); }
+    }
+    #badge.show { animation: badgeInOut 900ms ease-out; }
+    #badge.good { border-color: rgba(0,255,140,0.35); background: rgba(0,255,140,0.12); }
+    #badge.bad  { border-color: rgba(255,60,60,0.40); background: rgba(255,60,60,0.10); }
+
+    /* ===== Start screen ===== */
+    #startScreen {
+      position: absolute;
+      inset: 0;
+      z-index: 50;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+
+      padding:
+        calc(34px + env(safe-area-inset-top))
+        calc(34px + env(safe-area-inset-right))
+        calc(34px + env(safe-area-inset-bottom))
+        calc(34px + env(safe-area-inset-left));
+      box-sizing: border-box;
+
+      background:
+        radial-gradient(85% 70% at 15% 20%, rgba(0, 255, 140, 0.18), transparent 60%),
+        radial-gradient(85% 70% at 85% 30%, rgba(0, 255, 140, 0.14), transparent 62%),
+        radial-gradient(90% 75% at 60% 90%, rgba(0, 255, 140, 0.12), transparent 55%),
+        rgba(0,0,0,0.88);
     }
 
-    /* Terms modal */
-    #termsModal{
-      position:fixed;
-      inset:0;
-      display:none;
-      align-items:center;
-      justify-content:center;
-      background:rgba(0,0,0,.55);
-      z-index:50;
+    .startWrap {
+      width: 100%;
+      max-width: 640px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      align-items: center;
     }
 
-    .termsCard{
-      width:min(520px, calc(100vw - 44px));
-      max-height:80vh;
-      overflow:auto;
-      padding:18px;
-      border-radius:26px;
-      background:rgba(255,255,255,.1);
-      backdrop-filter:blur(14px);
+    .logoImgWrap {
+      display: flex;
+      justify-content: center;
+      width: 100%;
+      user-select: none;
+    }
+    /* smaller logo so it stays comfortably within the glass card width */
+    .logoImg {
+      width: min(380px, calc(100vw - 120px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+      height: auto;
+      display: block;
+      filter: drop-shadow(0 18px 40px rgba(0,0,0,0.55));
+    }
+
+    .startCard {
+      width: min(560px, calc(100vw - 72px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+      border-radius: 30px;
+      padding: 28px 22px 26px 22px;
+      text-align: center;
+
+      background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.04));
+      border: 1px solid rgba(255,255,255,0.16);
+      box-shadow: 0 22px 70px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08);
+
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+
+    .startTitle {
+      font-size: 44px;
+      font-weight: 900;
+      margin: 0 0 14px 0;
+      letter-spacing: 0.2px;
+    }
+
+    .startTip {
+      margin: 0 auto 18px auto;
+      max-width: 440px;
+      font-size: 18px;
+      line-height: 1.45;
+      color: rgba(255,255,255,0.82);
+      font-weight: 600;
+    }
+    .startTip strong {
+      font-weight: 900;
+      color: rgba(255,255,255,0.95);
+    }
+
+    .pillStack {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      align-items: center;
+      margin-top: 14px;
+    }
+
+    .pillBtn {
+      width: 100%;
+      max-width: 420px;
+      padding: 16px 18px;
+      border-radius: 999px;
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: 0.2px;
+      color: rgba(255,255,255,0.95);
+
+      background: rgba(0,0,0,0.22);
+      border: 2px solid rgba(255,255,255,0.85);
+      cursor: pointer;
+
+      box-shadow: 0 14px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.10);
+      transition: transform 0.08s ease, background 0.12s ease, border 0.12s ease;
+    }
+    .pillBtn:active { transform: scale(0.99); background: rgba(255,255,255,0.06); }
+
+    .comingSoon {
+      margin-top: 14px;
+      font-size: 18px;
+      color: rgba(255,255,255,0.55);
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+
+    /* ===== Modal (confirmation) ===== */
+    #modal {
+      position: absolute;
+      inset: 0;
+      z-index: 70;
+      display: none;            /* hidden by default */
+      align-items: center;
+      justify-content: center;
+      padding:
+        calc(22px + env(safe-area-inset-top))
+        calc(22px + env(safe-area-inset-right))
+        calc(22px + env(safe-area-inset-bottom))
+        calc(22px + env(safe-area-inset-left));
+      box-sizing: border-box;
+      background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+    }
+
+    .modalCard {
+      width: min(520px, calc(100vw - 44px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+      border-radius: 26px;
+      padding: 18px 16px 16px 16px;
+      text-align: center;
+
+      background: linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.05));
+      border: 1px solid rgba(255,255,255,0.16);
+      box-shadow: 0 22px 70px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.08);
+    }
+
+    .modalTitle {
+      font-size: 20px;
+      font-weight: 900;
+      margin: 2px 0 8px 0;
+      letter-spacing: 0.2px;
+    }
+    .modalText {
+      font-size: 15px;
+      color: rgba(255,255,255,0.78);
+      font-weight: 650;
+      line-height: 1.35;
+      margin: 0 0 14px 0;
+    }
+    .modalActions{
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    @media (max-width: 430px) {
+      #controls { gap: 8px; max-width: 70vw; }
+      .glassBtn { padding: 9px 12px; font-size: 14px; letter-spacing: 0.15px; }
+      #counters { max-width: 54vw; }
+
+      .startCard {
+        width: calc(100vw - 84px - env(safe-area-inset-left) - env(safe-area-inset-right));
+      }
+    }
+    @media (max-width: 380px) {
+      #controls { max-width: 74vw; }
+      .glassBtn { padding: 8px 10px; font-size: 13px; }
+      .startTitle { font-size: 38px; }
+      .pillBtn { font-size: 20px; padding: 14px 16px; }
+
+      #startScreen {
+        padding:
+          calc(30px + env(safe-area-inset-top))
+          calc(30px + env(safe-area-inset-right))
+          calc(30px + env(safe-area-inset-bottom))
+          calc(30px + env(safe-area-inset-left));
+      }
+      .startCard {
+        width: calc(100vw - 92px - env(safe-area-inset-left) - env(safe-area-inset-right));
+      }
     }
   </style>
 </head>
@@ -181,94 +382,488 @@
   <video id="video" autoplay playsinline muted></video>
   <canvas id="canvas"></canvas>
 
+  <div id="flash"></div>
+
+  <!-- Minimal HUD -->
   <div id="hud">
     <div id="counters">
-      <div id="repsText">Reps: 0</div>
-      <div id="noRepsText">No Reps: 0</div>
+      <div class="big" id="repsText">Reps: 0</div>
+      <div class="small" id="noRepsText">No Reps: 0</div>
+      <div class="small" id="tinyStatus" style="margin-top:8px; opacity:0.7;">Ready</div>
     </div>
+
     <div id="controls">
-      <button id="guidesBtn" class="glassBtn green">Guides</button>
-      <button id="divisionBtn" class="glassBtn">Division ▾</button>
-      <button id="targetMissBtn" class="glassBtn red">Target Miss</button>
-      <button id="resetBtn" class="glassBtn">Reset</button>
-      <button id="flipBtn" class="glassBtn green">Flip</button>
+      <button id="guidesBtn" class="glassBtn green" type="button">Guides</button>
+      <button id="divisionBtn" class="glassBtn" type="button">Division ▾</button>
+      <button id="targetMissBtn" class="glassBtn red" type="button">Target Miss</button>
+      <button id="resetBtn" class="glassBtn" type="button">Reset</button>
+      <button id="flipBtn" class="glassBtn green" type="button">Flip</button>
     </div>
   </div>
 
-  <div id="badgeWrap"><div id="badge">READY</div></div>
+  <!-- Center badge -->
+  <div id="badgeWrap">
+    <div id="badge">READY</div>
+  </div>
 
-  <!-- START SCREEN -->
+  <!-- Start screen -->
   <div id="startScreen">
     <div class="startWrap">
-      <img src="repchk_logo.png" class="logoImg" alt="REPCHK" />
-
-      <div class="startCard">
-        <h1>Select Division</h1>
-        <p>Place phone so full body is visible.<br><strong>Rear camera recommended.</strong></p>
-
-        <button class="pillBtn" onclick="startApp('women')">Women</button>
-        <button class="pillBtn" onclick="startApp('men')">Men</button>
-
-        <div class="comingSoon">
-          Early access version. Not yet available in the App Store.<br>
-          <span style="font-size:14px;opacity:.7">
-            Install on iPhone: Safari → Share → Add to Home Screen
-          </span>
-        </div>
+      <div class="logoImgWrap">
+        <img class="logoImg" src="repchk_logo.png" alt="REPCHK logo" />
       </div>
 
-      <!-- TERMS LINK -->
-      <a href="#" id="termsLink"
-         style="margin-top:14px;font-size:13px;color:rgba(255,255,255,.55);text-decoration:none">
-        Terms & Conditions
-      </a>
+      <div class="startCard">
+        <h1 class="startTitle">Select Division</h1>
+        <p class="startTip">
+          Tip: place your phone so your full body is visible.
+          <br><strong>Rear camera gives best tracking.</strong>
+        </p>
+
+        <div class="pillStack">
+          <button class="pillBtn" onclick="startApp('women')">Women</button>
+          <button class="pillBtn" onclick="startApp('men')">Men</button>
+        </div>
+
+       <div class="comingSoon">
+  Early access version. Not yet available in the App Store.<br>
+
+  <span style="display:block; margin-top:6px; font-size:14px; opacity:0.7;">
+    Install on iPhone: Open in Safari → Share → Add to Home Screen
+  </span>
+
+  <a href="https://www.instagram.com/repchk.app/"
+     target="_blank"
+     rel="noopener"
+     style="
+       display:inline-flex;
+       align-items:center;
+       gap:6px;
+       margin-top:10px;
+       font-size:14px;
+       font-weight:600;
+       text-decoration:none;
+       color: rgba(255,255,255,0.75);
+     ">
+    <!-- Instagram icon (inline SVG, no extra files needed) -->
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+         stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round"
+         style="opacity:0.8;">
+      <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+      <path d="M16 11.37a4 4 0 1 1-7.75 1.25 4 4 0 0 1 7.75-1.25z"></path>
+      <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
+    </svg>
+    Follow @repchk.app
+  </a>
+</div>
+
+      </div>
     </div>
   </div>
 
-  <!-- TERMS MODAL -->
-  <div id="termsModal">
-    <div class="termsCard">
-      <h2>REPCHK – Early Access Terms</h2>
-      <p>REPCHK is an early access product provided for testing and evaluation purposes only.</p>
-      <p><strong>Ownership</strong><br>
-        All software, code, designs, and functionality are the intellectual property of REPCHK.
-        You may not copy, modify, reverse engineer, distribute, or commercialise any part of the app.
+  <!-- Confirmation modal -->
+  <div id="modal" role="dialog" aria-modal="true" aria-label="Change division">
+    <div class="modalCard">
+      <div class="modalTitle">Change division?</div>
+      <p class="modalText">
+        This will reset reps and restart the camera so you can select Women or Men again.
       </p>
-      <p><strong>Use at your own risk</strong><br>
-        REPCHK is not an official judging tool and is not affiliated with HYROX or any competition organiser.
-      </p>
-      <p><strong>No liability</strong><br>
-        REPCHK is not responsible for injuries, missed reps, or training decisions made using the app.
-      </p>
-      <p><strong>Early access status</strong><br>
-        Features may change, break, or be removed prior to App Store release.
-      </p>
-      <button id="closeTermsBtn" class="glassBtn">Close</button>
+      <div class="modalActions">
+        <button id="modalCancelBtn" class="glassBtn" type="button">Cancel</button>
+        <button id="modalConfirmBtn" class="glassBtn green" type="button">Change</button>
+      </div>
     </div>
   </div>
 </div>
 
+<!-- MediaPipe -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
 
 <script>
-  const termsLink=document.getElementById("termsLink");
-  const termsModal=document.getElementById("termsModal");
-  const closeTermsBtn=document.getElementById("closeTermsBtn");
+  const video = document.getElementById("video");
+  const canvas = document.getElementById("canvas");
+  const ctx = canvas.getContext("2d");
 
-  termsLink.onclick=e=>{
-    e.preventDefault();
-    termsModal.style.display="flex";
-  };
-  closeTermsBtn.onclick=()=>termsModal.style.display="none";
-  termsModal.onclick=e=>{
-    if(e.target===termsModal)termsModal.style.display="none";
+  const repsText = document.getElementById("repsText");
+  const noRepsText = document.getElementById("noRepsText");
+  const tinyStatus = document.getElementById("tinyStatus");
+
+  const startScreen = document.getElementById("startScreen");
+  const flipBtn = document.getElementById("flipBtn");
+  const resetBtn = document.getElementById("resetBtn");
+  const targetMissBtn = document.getElementById("targetMissBtn");
+  const guidesBtn = document.getElementById("guidesBtn");
+  const divisionBtn = document.getElementById("divisionBtn");
+
+  const modal = document.getElementById("modal");
+  const modalCancelBtn = document.getElementById("modalCancelBtn");
+  const modalConfirmBtn = document.getElementById("modalConfirmBtn");
+
+  const flashEl = document.getElementById("flash");
+  const badgeEl = document.getElementById("badge");
+
+  // ==========================
+  // Division-specific settings (READY for later)
+  // - You can add more settings per division here later (e.g. strictness slider values, throw line ratio, etc.)
+  // ==========================
+  const DIVISION_SETTINGS = {
+    women: { depthMarginPx: 18 },
+    men:   { depthMarginPx: 18 }
   };
 
-  function startApp(d){
-    document.getElementById("startScreen").style.display="none";
+  let currentDivision = null;
+
+  function setDivisionUI(division) {
+    currentDivision = division;
+    if (!division) {
+      divisionBtn.textContent = "Division ▾";
+      return;
+    }
+    const label = division === "women" ? "Women" : "Men";
+    divisionBtn.textContent = `${label} ▾`;
+  }
+
+  // Active tuning values (derived from current division)
+  let DEPTH_MARGIN_PX = 18; // gets overridden once division selected
+  const THROW_LINE_RATIO = 0.35;
+  const RESET_LINE_RATIO = 0.55;
+  const MIN_TIME_BETWEEN_REPS_MS = 450;
+
+  function applyDivisionSettings(division) {
+    const s = DIVISION_SETTINGS[division] || DIVISION_SETTINGS.women;
+    DEPTH_MARGIN_PX = s.depthMarginPx;
+  }
+
+  // Guides (calibration overlays)
+  let guidesOn = true;
+  function syncGuidesUI() {
+    guidesBtn.classList.toggle("off", !guidesOn);
+  }
+  guidesBtn.addEventListener("click", () => {
+    guidesOn = !guidesOn;
+    syncGuidesUI();
+  });
+  syncGuidesUI();
+
+  // Counters
+  let reps = 0;     // GOOD reps only
+  let noReps = 0;
+
+  // Rep-cycle state
+  let depthReachedThisCycle = false;
+  let throwHigh = false;
+  let lastRepTime = 0;
+
+  // Camera/pose
+  let currentFacing = "environment";
+  let currentStream = null;
+  let pose = null;
+
+  let rafId = null;
+  let isProcessing = false;
+  let started = false;
+
+  function updateCounters() {
+    repsText.textContent = `Reps: ${reps}`;
+    noRepsText.textContent = `No Reps: ${noReps}`;
+  }
+
+  function setStatus(text) {
+    tinyStatus.textContent = text;
+  }
+
+  function flash(color) {
+    flashEl.classList.remove("flash");
+    flashEl.style.background = color;
+    void flashEl.offsetWidth;
+    flashEl.classList.add("flash");
+  }
+
+  function showBadge(text, type) {
+    badgeEl.classList.remove("show", "good", "bad");
+    badgeEl.textContent = text;
+    if (type === "good") badgeEl.classList.add("good");
+    if (type === "bad") badgeEl.classList.add("bad");
+    void badgeEl.offsetWidth;
+    badgeEl.classList.add("show");
+  }
+
+  function resetCycleOnly() {
+    depthReachedThisCycle = false;
+    throwHigh = false;
+  }
+
+  function hardResetCounts() {
+    reps = 0;
+    noReps = 0;
+    lastRepTime = 0;
+    resetCycleOnly();
+    updateCounters();
+    setStatus("Reset ✅");
+    showBadge("RESET", "");
+  }
+  resetBtn.addEventListener("click", hardResetCounts);
+
+  targetMissBtn.addEventListener("click", () => {
+    noReps += 1;
+    updateCounters();
+    setStatus("NO REP ❌ (target miss)");
+    showBadge("NO REP", "bad");
+    flash("rgba(255,60,60,0.22)");
+
+    lastRepTime = Date.now();
+    resetCycleOnly();
+  });
+
+  // ===== Modal controls =====
+  function openModal() {
+    modal.style.display = "flex";
+  }
+  function closeModal() {
+    modal.style.display = "none";
+  }
+
+  divisionBtn.addEventListener("click", () => {
+    // Only show confirm once user has started a session.
+    if (!started) return;
+    openModal();
+  });
+
+  modalCancelBtn.addEventListener("click", closeModal);
+
+  modalConfirmBtn.addEventListener("click", () => {
+    closeModal();
+    returnToStartScreen();
+  });
+
+  // allow tapping outside modal card to close
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) closeModal();
+  });
+
+  // ===== Start / restart flow =====
+  function returnToStartScreen() {
+    stopLoop();
+    stopStream();
+
+    reps = 0;
+    noReps = 0;
+    lastRepTime = 0;
+    resetCycleOnly();
+    updateCounters();
+
+    started = false;
+    setStatus("Ready");
+    showBadge("READY", "");
+    setDivisionUI(null);
+
+    startScreen.style.display = "flex";
+  }
+
+  function startApp(division) {
+    // set division
+    setDivisionUI(division);
+    applyDivisionSettings(division);
+
+    // hide start, start session
+    startScreen.style.display = "none";
+    started = true;
+
+    updateCounters();
+    setStatus("Ready");
+    initPoseOnce();
+    startWithFacing("environment");
+  }
+
+  function initPoseOnce() {
+    if (pose) return;
+
+    pose = new Pose({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`,
+    });
+
+    pose.setOptions({
+      modelComplexity: 1,
+      smoothLandmarks: true,
+      enableSegmentation: false,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5,
+    });
+
+    pose.onResults(onResults);
+  }
+
+  function stopLoop() {
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = null;
+  }
+
+  function stopStream() {
+    if (currentStream) {
+      currentStream.getTracks().forEach(t => t.stop());
+      currentStream = null;
+    }
+  }
+
+  async function startWithFacing(facing) {
+    stopLoop();
+    stopStream();
+
+    setStatus("Switching...");
+
+    const tryConstraints = [
+      { video: { facingMode: { exact: facing }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false },
+      { video: { facingMode: { ideal: facing }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false },
+    ];
+
+    let stream = null;
+    let lastErr = null;
+
+    for (const c of tryConstraints) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(c);
+        break;
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+
+    if (!stream) {
+      if (facing === "environment") {
+        setStatus("Rear blocked — using front");
+        return startWithFacing("user");
+      }
+      setStatus("Camera error");
+      console.error(lastErr);
+      return;
+    }
+
+    currentStream = stream;
+    video.srcObject = currentStream;
+
+    try { await video.play(); } catch (_) {}
+
+    currentFacing = facing;
+    setStatus(`Camera: ${currentFacing === "environment" ? "Rear" : "Front"}`);
+
+    resetCycleOnly();
+    runLoop();
+  }
+
+  function runLoop() {
+    const tick = async () => {
+      rafId = requestAnimationFrame(tick);
+
+      if (!pose || !started) return;
+      if (isProcessing) return;
+      if (video.readyState < 2) return;
+
+      isProcessing = true;
+      try {
+        await pose.send({ image: video });
+      } catch (e) {
+      } finally {
+        isProcessing = false;
+      }
+    };
+    tick();
+  }
+
+  flipBtn.addEventListener("click", async () => {
+    if (!started) return;
+    const next = (currentFacing === "environment") ? "user" : "environment";
+    await startWithFacing(next);
+  });
+
+  function onResults(results) {
+    if (!video.videoWidth || !video.videoHeight) return;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+
+    if (!results.poseLandmarks) {
+      setStatus("No person detected");
+      return;
+    }
+
+    const lm = results.poseLandmarks;
+
+    // Depth (hip below knee)
+    const leftHipY  = lm[23].y * canvas.height;
+    const rightHipY = lm[24].y * canvas.height;
+    const leftKneeY = lm[25].y * canvas.height;
+    const rightKneeY= lm[26].y * canvas.height;
+
+    const hipY  = Math.max(leftHipY, rightHipY);
+    const kneeY = Math.max(leftKneeY, rightKneeY);
+
+    const depthGoodNow = hipY > (kneeY + DEPTH_MARGIN_PX);
+    if (depthGoodNow) depthReachedThisCycle = true;
+
+    if (guidesOn) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.lineWidth = 8;
+      ctx.strokeStyle = depthReachedThisCycle ? "rgba(0,255,140,0.95)" : "rgba(255,255,255,0.55)";
+      ctx.moveTo(0, kneeY);
+      ctx.lineTo(canvas.width, kneeY);
+      ctx.stroke();
+
+      const hipX = ((lm[23].x + lm[24].x) / 2) * canvas.width;
+      ctx.beginPath();
+      ctx.fillStyle = depthGoodNow ? "rgba(0,255,140,0.95)" : "rgba(255,255,255,0.55)";
+      ctx.arc(hipX, hipY, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Throw timing (wrists)
+    const leftWristY = lm[15].y * canvas.height;
+    const rightWristY = lm[16].y * canvas.height;
+    const wristY = Math.min(leftWristY, rightWristY);
+
+    const throwLineY = canvas.height * THROW_LINE_RATIO;
+    const resetLineY = canvas.height * RESET_LINE_RATIO;
+
+    const now = Date.now();
+
+    if (!throwHigh && wristY < throwLineY) {
+      if (now - lastRepTime > MIN_TIME_BETWEEN_REPS_MS) {
+        if (depthReachedThisCycle) {
+          reps += 1;
+          updateCounters();
+          setStatus("GOOD REP ✅");
+          showBadge("GOOD REP", "good");
+          flash("rgba(0,255,140,0.25)");
+        } else {
+          noReps += 1;
+          updateCounters();
+          setStatus("NO REP ❌ (depth)");
+          showBadge("NO REP", "bad");
+          flash("rgba(255,60,60,0.22)");
+        }
+
+        throwHigh = true;
+        lastRepTime = now;
+        depthReachedThisCycle = false;
+      }
+    }
+
+    if (throwHigh && wristY > resetLineY) {
+      throwHigh = false;
+    }
+
+    if (guidesOn) {
+      drawConnectors(ctx, lm, POSE_CONNECTIONS, { color: "#00FF00", lineWidth: 2 });
+      drawLandmarks(ctx, lm, { color: "#FF0000", lineWidth: 1 });
+    }
   }
 </script>
-
 </body>
 </html>
+
