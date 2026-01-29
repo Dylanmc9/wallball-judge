@@ -459,6 +459,19 @@
 </div>
 
       </div>
+      <a href="#"
+   id="termsLink"
+   style="
+     margin-top:14px;
+     font-size:13px;
+     font-weight:600;
+     letter-spacing:0.2px;
+     text-decoration:none;
+     color: rgba(255,255,255,0.55);
+   ">
+  Terms & Conditions
+</a>
+
     </div>
   </div>
 
@@ -863,7 +876,103 @@
       drawLandmarks(ctx, lm, { color: "#FF0000", lineWidth: 1 });
     }
   }
+
+  const termsLink = document.getElementById("termsLink");
+const termsModal = document.getElementById("termsModal");
+const closeTermsBtn = document.getElementById("closeTermsBtn");
+
+termsLink.addEventListener("click", (e) => {
+  e.preventDefault();
+  termsModal.style.display = "flex";
+});
+
+closeTermsBtn.addEventListener("click", () => {
+  termsModal.style.display = "none";
+});
+
+// close when tapping outside the card
+termsModal.addEventListener("click", (e) => {
+  if (e.target === termsModal) {
+    termsModal.style.display = "none";
+  }
+});
+
 </script>
+  <div id="termsModal"
+     style="
+       position:fixed;
+       inset:0;
+       z-index:80;
+       display:none;
+       align-items:center;
+       justify-content:center;
+       padding:
+         calc(22px + env(safe-area-inset-top))
+         calc(22px + env(safe-area-inset-right))
+         calc(22px + env(safe-area-inset-bottom))
+         calc(22px + env(safe-area-inset-left));
+       background: rgba(0,0,0,0.55);
+       backdrop-filter: blur(6px);
+       -webkit-backdrop-filter: blur(6px);
+     ">
+  <div
+    style="
+      width: min(520px, calc(100vw - 44px));
+      max-height: 80vh;
+      overflow-y: auto;
+      border-radius: 26px;
+      padding: 18px 16px 16px 16px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.05));
+      border: 1px solid rgba(255,255,255,0.16);
+      box-shadow: 0 22px 70px rgba(0,0,0,0.65);
+    ">
+    <div style="font-size:20px; font-weight:900; margin-bottom:8px;">
+      REPCHK – Early Access Terms
+    </div>
+
+    <div style="font-size:14px; line-height:1.45; color: rgba(255,255,255,0.85); font-weight:500;">
+      <p>
+        REPCHK is an early access product provided for testing and evaluation purposes only.
+      </p>
+
+      <p>
+        <strong>Ownership</strong><br>
+        All software, code, designs, and functionality are the intellectual property of REPCHK.
+        You may not copy, modify, reverse engineer, distribute, or commercialise any part of the app.
+      </p>
+
+      <p>
+        <strong>Use at your own risk</strong><br>
+        REPCHK is not an official judging tool and is not affiliated with HYROX or any competition organiser.
+        The app is provided “as is” without guarantees of accuracy.
+      </p>
+
+      <p>
+        <strong>No liability</strong><br>
+        REPCHK is not responsible for injuries, missed reps, or training decisions made using the app.
+      </p>
+
+      <p>
+        <strong>Early access status</strong><br>
+        Features may change, break, or be removed at any time prior to an App Store release.
+      </p>
+
+      <p style="margin-bottom:0;">
+        By continuing to use REPCHK, you confirm that you understand and agree to these terms.
+      </p>
+    </div>
+
+    <div style="display:flex; justify-content:center; margin-top:14px;">
+      <button id="closeTermsBtn"
+              class="glassBtn"
+              type="button">
+        Close
+      </button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
+
 
