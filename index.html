@@ -877,26 +877,6 @@
     }
   }
 
-  const termsLink = document.getElementById("termsLink");
-const termsModal = document.getElementById("termsModal");
-const closeTermsBtn = document.getElementById("closeTermsBtn");
-
-termsLink.addEventListener("click", (e) => {
-  e.preventDefault();
-  termsModal.style.display = "flex";
-});
-
-closeTermsBtn.addEventListener("click", () => {
-  termsModal.style.display = "none";
-});
-
-// close when tapping outside the card
-termsModal.addEventListener("click", (e) => {
-  if (e.target === termsModal) {
-    termsModal.style.display = "none";
-  }
-});
-
 </script>
   <div id="termsModal"
      style="
@@ -971,8 +951,30 @@ termsModal.addEventListener("click", (e) => {
     </div>
   </div>
 </div>
+<script>
+   const termsLink = document.getElementById("termsLink");
+const termsModal = document.getElementById("termsModal");
+const closeTermsBtn = document.getElementById("closeTermsBtn");
 
+termsLink.addEventListener("click", (e) => {
+  e.preventDefault();
+  termsModal.style.display = "flex";
+});
+
+closeTermsBtn.addEventListener("click", () => {
+  termsModal.style.display = "none";
+});
+
+// close when tapping outside the card
+termsModal.addEventListener("click", (e) => {
+  if (e.target === termsModal) {
+    termsModal.style.display = "none";
+  }
+});
+
+</script>
 </body>
 </html>
+
 
 
