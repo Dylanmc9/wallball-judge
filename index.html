@@ -2,19 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Wall Ball Judge</title>
+  <title>REPCHK</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="manifest" href="./manifest.webmanifest">
-<meta name="theme-color" content="#000000">
 
-<!-- iOS Add to Home Screen support -->
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="REPCHK">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="apple-touch-icon" href="./apple-touch-icon.png">
   <style>
     :root{
-      --flipGreen: #087862;
+      --green: #087862;
       --red: rgba(255, 90, 90, 0.95);
       --glassBorder: rgba(255,255,255,0.18);
       --textDim: rgba(255,255,255,0.78);
@@ -90,7 +83,7 @@
       -webkit-backdrop-filter: blur(10px);
       box-shadow: 0 12px 30px rgba(0,0,0,0.35);
       min-width: 140px;
-      max-width: 45vw;
+      max-width: 48vw;
     }
 
     #counters .big {
@@ -115,8 +108,8 @@
       gap: 10px;
       align-items: center;
       justify-content: flex-end;
-      flex-wrap: wrap;
-      max-width: 60vw;
+      flex-wrap: wrap;       /* wraps so nothing gets cut off */
+      max-width: 66vw;
     }
 
     .glassBtn {
@@ -199,7 +192,6 @@
       justify-content: center;
       align-items: center;
 
-      /* strong outer padding */
       padding:
         calc(34px + env(safe-area-inset-top))
         calc(34px + env(safe-area-inset-right))
@@ -214,7 +206,6 @@
         rgba(0,0,0,0.88);
     }
 
-    /* full-width wrapper so card can be constrained precisely */
     .startWrap {
       width: 100%;
       max-width: 640px;
@@ -227,19 +218,17 @@
     .logoImgWrap {
       display: flex;
       justify-content: center;
-      margin-bottom: 4px;
-      user-select: none;
       width: 100%;
+      user-select: none;
     }
+    /* smaller logo so it stays comfortably within the glass card width */
     .logoImg {
-  width: min(380px, calc(100vw - 120px - env(safe-area-inset-left) - env(safe-area-inset-right)));
-  height: auto;
-  display: block;
-  filter: drop-shadow(0 18px 40px rgba(0,0,0,0.55));
-}
+      width: min(380px, calc(100vw - 120px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+      height: auto;
+      display: block;
+      filter: drop-shadow(0 18px 40px rgba(0,0,0,0.55));
+    }
 
-
-    /* IMPORTANT: hard cap based on viewport minus guaranteed margins */
     .startCard {
       width: min(560px, calc(100vw - 72px - env(safe-area-inset-left) - env(safe-area-inset-right)));
       border-radius: 30px;
@@ -309,18 +298,67 @@
       letter-spacing: 0.2px;
     }
 
-    @media (max-width: 430px) {
-      #controls { gap: 8px; max-width: 66vw; }
-      .glassBtn { padding: 9px 12px; font-size: 14px; letter-spacing: 0.15px; }
-      #counters { max-width: 52vw; }
+    /* ===== Modal (confirmation) ===== */
+    #modal {
+      position: absolute;
+      inset: 0;
+      z-index: 70;
+      display: none;            /* hidden by default */
+      align-items: center;
+      justify-content: center;
+      padding:
+        calc(22px + env(safe-area-inset-top))
+        calc(22px + env(safe-area-inset-right))
+        calc(22px + env(safe-area-inset-bottom))
+        calc(22px + env(safe-area-inset-left));
+      box-sizing: border-box;
+      background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+    }
 
-      /* even more guaranteed space on small screens */
+    .modalCard {
+      width: min(520px, calc(100vw - 44px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+      border-radius: 26px;
+      padding: 18px 16px 16px 16px;
+      text-align: center;
+
+      background: linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.05));
+      border: 1px solid rgba(255,255,255,0.16);
+      box-shadow: 0 22px 70px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.08);
+    }
+
+    .modalTitle {
+      font-size: 20px;
+      font-weight: 900;
+      margin: 2px 0 8px 0;
+      letter-spacing: 0.2px;
+    }
+    .modalText {
+      font-size: 15px;
+      color: rgba(255,255,255,0.78);
+      font-weight: 650;
+      line-height: 1.35;
+      margin: 0 0 14px 0;
+    }
+    .modalActions{
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    @media (max-width: 430px) {
+      #controls { gap: 8px; max-width: 70vw; }
+      .glassBtn { padding: 9px 12px; font-size: 14px; letter-spacing: 0.15px; }
+      #counters { max-width: 54vw; }
+
       .startCard {
         width: calc(100vw - 84px - env(safe-area-inset-left) - env(safe-area-inset-right));
       }
     }
     @media (max-width: 380px) {
-      #controls { max-width: 70vw; }
+      #controls { max-width: 74vw; }
       .glassBtn { padding: 8px 10px; font-size: 13px; }
       .startTitle { font-size: 38px; }
       .pillBtn { font-size: 20px; padding: 14px 16px; }
@@ -338,13 +376,7 @@
     }
   </style>
 </head>
-<script>
-  if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js").catch(() => {});
-    });
-  }
-</script>
+
 <body>
 <div id="videoContainer">
   <video id="video" autoplay playsinline muted></video>
@@ -352,6 +384,7 @@
 
   <div id="flash"></div>
 
+  <!-- Minimal HUD -->
   <div id="hud">
     <div id="counters">
       <div class="big" id="repsText">Reps: 0</div>
@@ -361,16 +394,19 @@
 
     <div id="controls">
       <button id="guidesBtn" class="glassBtn green" type="button">Guides</button>
+      <button id="divisionBtn" class="glassBtn" type="button">Division ▾</button>
       <button id="targetMissBtn" class="glassBtn red" type="button">Target Miss</button>
       <button id="resetBtn" class="glassBtn" type="button">Reset</button>
       <button id="flipBtn" class="glassBtn green" type="button">Flip</button>
     </div>
   </div>
 
+  <!-- Center badge -->
   <div id="badgeWrap">
     <div id="badge">READY</div>
   </div>
 
+  <!-- Start screen -->
   <div id="startScreen">
     <div class="startWrap">
       <div class="logoImgWrap">
@@ -390,16 +426,31 @@
         </div>
 
         <div class="comingSoon">
-  Coming soon<br>
-  <span style="display:block; margin-top:6px; font-size:14px; opacity:0.7;">
-    Install on iPhone: Open in Safari → Share → Add to Home Screen
-  </span>
-</div>
+          Coming soon<br>
+          <span style="display:block; margin-top:6px; font-size:14px; opacity:0.7;">
+            Install on iPhone: Open in Safari → Share → Add to Home Screen
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirmation modal -->
+  <div id="modal" role="dialog" aria-modal="true" aria-label="Change division">
+    <div class="modalCard">
+      <div class="modalTitle">Change division?</div>
+      <p class="modalText">
+        This will reset reps and restart the camera so you can select Women or Men again.
+      </p>
+      <div class="modalActions">
+        <button id="modalCancelBtn" class="glassBtn" type="button">Cancel</button>
+        <button id="modalConfirmBtn" class="glassBtn green" type="button">Change</button>
       </div>
     </div>
   </div>
 </div>
 
+<!-- MediaPipe -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
 
@@ -417,17 +468,49 @@
   const resetBtn = document.getElementById("resetBtn");
   const targetMissBtn = document.getElementById("targetMissBtn");
   const guidesBtn = document.getElementById("guidesBtn");
+  const divisionBtn = document.getElementById("divisionBtn");
+
+  const modal = document.getElementById("modal");
+  const modalCancelBtn = document.getElementById("modalCancelBtn");
+  const modalConfirmBtn = document.getElementById("modalConfirmBtn");
 
   const flashEl = document.getElementById("flash");
   const badgeEl = document.getElementById("badge");
 
-  const DEPTH_MARGIN_PX = 18;
+  // ==========================
+  // Division-specific settings (READY for later)
+  // - You can add more settings per division here later (e.g. strictness slider values, throw line ratio, etc.)
+  // ==========================
+  const DIVISION_SETTINGS = {
+    women: { depthMarginPx: 18 },
+    men:   { depthMarginPx: 18 }
+  };
+
+  let currentDivision = null;
+
+  function setDivisionUI(division) {
+    currentDivision = division;
+    if (!division) {
+      divisionBtn.textContent = "Division ▾";
+      return;
+    }
+    const label = division === "women" ? "Women" : "Men";
+    divisionBtn.textContent = `${label} ▾`;
+  }
+
+  // Active tuning values (derived from current division)
+  let DEPTH_MARGIN_PX = 18; // gets overridden once division selected
   const THROW_LINE_RATIO = 0.35;
   const RESET_LINE_RATIO = 0.55;
   const MIN_TIME_BETWEEN_REPS_MS = 450;
 
-  let guidesOn = true;
+  function applyDivisionSettings(division) {
+    const s = DIVISION_SETTINGS[division] || DIVISION_SETTINGS.women;
+    DEPTH_MARGIN_PX = s.depthMarginPx;
+  }
 
+  // Guides (calibration overlays)
+  let guidesOn = true;
   function syncGuidesUI() {
     guidesBtn.classList.toggle("off", !guidesOn);
   }
@@ -437,13 +520,16 @@
   });
   syncGuidesUI();
 
-  let reps = 0;
+  // Counters
+  let reps = 0;     // GOOD reps only
   let noReps = 0;
 
+  // Rep-cycle state
   let depthReachedThisCycle = false;
   let throwHigh = false;
   let lastRepTime = 0;
 
+  // Camera/pose
   let currentFacing = "environment";
   let currentStream = null;
   let pose = null;
@@ -455,6 +541,10 @@
   function updateCounters() {
     repsText.textContent = `Reps: ${reps}`;
     noRepsText.textContent = `No Reps: ${noReps}`;
+  }
+
+  function setStatus(text) {
+    tinyStatus.textContent = text;
   }
 
   function flash(color) {
@@ -473,10 +563,6 @@
     badgeEl.classList.add("show");
   }
 
-  function setStatus(text) {
-    tinyStatus.textContent = text;
-  }
-
   function resetCycleOnly() {
     depthReachedThisCycle = false;
     throwHigh = false;
@@ -491,7 +577,6 @@
     setStatus("Reset ✅");
     showBadge("RESET", "");
   }
-
   resetBtn.addEventListener("click", hardResetCounts);
 
   targetMissBtn.addEventListener("click", () => {
@@ -505,9 +590,60 @@
     resetCycleOnly();
   });
 
+  // ===== Modal controls =====
+  function openModal() {
+    modal.style.display = "flex";
+  }
+  function closeModal() {
+    modal.style.display = "none";
+  }
+
+  divisionBtn.addEventListener("click", () => {
+    // Only show confirm once user has started a session.
+    if (!started) return;
+    openModal();
+  });
+
+  modalCancelBtn.addEventListener("click", closeModal);
+
+  modalConfirmBtn.addEventListener("click", () => {
+    closeModal();
+    returnToStartScreen();
+  });
+
+  // allow tapping outside modal card to close
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) closeModal();
+  });
+
+  // ===== Start / restart flow =====
+  function returnToStartScreen() {
+    stopLoop();
+    stopStream();
+
+    reps = 0;
+    noReps = 0;
+    lastRepTime = 0;
+    resetCycleOnly();
+    updateCounters();
+
+    started = false;
+    setStatus("Ready");
+    showBadge("READY", "");
+    setDivisionUI(null);
+
+    startScreen.style.display = "flex";
+  }
+
   function startApp(division) {
+    // set division
+    setDivisionUI(division);
+    applyDivisionSettings(division);
+
+    // hide start, start session
     startScreen.style.display = "none";
     started = true;
+
     updateCounters();
     setStatus("Ready");
     initPoseOnce();
@@ -547,6 +683,7 @@
   async function startWithFacing(facing) {
     stopLoop();
     stopStream();
+
     setStatus("Switching...");
 
     const tryConstraints = [
@@ -629,6 +766,7 @@
 
     const lm = results.poseLandmarks;
 
+    // Depth (hip below knee)
     const leftHipY  = lm[23].y * canvas.height;
     const rightHipY = lm[24].y * canvas.height;
     const leftKneeY = lm[25].y * canvas.height;
@@ -657,6 +795,7 @@
       ctx.restore();
     }
 
+    // Throw timing (wrists)
     const leftWristY = lm[15].y * canvas.height;
     const rightWristY = lm[16].y * canvas.height;
     const wristY = Math.min(leftWristY, rightWristY);
@@ -668,7 +807,6 @@
 
     if (!throwHigh && wristY < throwLineY) {
       if (now - lastRepTime > MIN_TIME_BETWEEN_REPS_MS) {
-
         if (depthReachedThisCycle) {
           reps += 1;
           updateCounters();
@@ -701,7 +839,3 @@
 </script>
 </body>
 </html>
-
-
-
-
